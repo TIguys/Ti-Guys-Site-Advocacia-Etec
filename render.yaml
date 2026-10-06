@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: advocacia-etec
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server.py
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: AI_MODEL
+        value: nvidia/nemotron-3-ultra-550b-a55b:free
+      - key: AI_MAX_OUTPUT_TOKENS
+        value: "800"
+      - key: SUPABASE_URL
+        value: https://xfdfnqknajmwzspfqqcw.supabase.co
+      - key: SUPABASE_ANON_KEY
+        sync: false

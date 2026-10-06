@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html class="light" lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>Advocacia ETEC — Gestão Jurídica Inteligente</title>
+  
+  <!-- Google Fonts: Noto Serif (editorial) & IBM Plex Sans + Plus Jakarta Sans (interface) -->
+  <link href="https://fonts.googleapis.com" rel="preconnect"/>
+  <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Noto+Serif:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  
+  <!-- Material Symbols Outlined -->
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  
+  <link href="favicon.svg" rel="icon" type="image/svg+xml"/>
+  <link href="tailwind.css" rel="stylesheet"/>
+  
+  <!-- Supabase JS Client via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Custom CSS -->
+  <link href="style.css" rel="stylesheet"/>
+  
+  <!-- Chart.js para Relatórios -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body class="bg-[#FBFBFA] dark:bg-darkbg text-stone-900 dark:text-stone-100 font-sans antialiased min-h-screen flex flex-col selection:bg-brand-50 selection:text-brand-900 transition-colors duration-200">
+
+  <!-- ======================================================== -->
+  <!-- TELA DE LOGIN / AUTENTICAÇÃO (Aparece antes de logar) -->
+  <!-- ======================================================== -->
+  <div id="view-login" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-[#FBFBFA] dark:bg-darkbg">
+    <div class="w-full max-w-md bg-white dark:bg-darksurface border border-stone-200 dark:border-stone-800 rounded-2xl shadow-xl p-8 space-y-6">
+      
+      <div class="text-center space-y-2">
+        <div class="w-14 h-14 rounded-2xl bg-brand-800 flex items-center justify-center text-gold-400 font-serif font-bold text-3xl shadow-lg mx-auto mb-3">
+          <span class="material-symbols-outlined" aria-hidden="true">balance</span>
+        </div>
+        <h1 class="font-serif text-2xl font-bold text-stone-900 dark:text-stone-100">Advocacia ETEC</h1>
+        <p class="text-xs text-stone-500 dark:text-stone-400 font-ui uppercase tracking-widest font-medium">Sistema de Gestão Jurídica</p>
+      </div>
+
+      
+
+      <!-- Formulário de Login Principal -->
+      <form id="form-login" class="space-y-4 text-xs font-ui">
+        <div><label for="login-role" class="block font-semibold mb-1">Entrar como</label><select id="login-role" class="w-full px-3.5 py-2.5 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard"><option value="cliente">Cliente</option><option value="advogado">Advogado</option><option value="secretaria">Secretaria</option></select></div>
+        <div>
+          <label class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">E-mail Corporativo</label>
+          <input id="login-email" type="email" required value="secretaria@advocaciaetec.com.br" class="w-full px-3.5 py-2.5 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800 text-xs"/>
+        </div>
+
+        <div>
+          <label class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">Senha de Acesso</label>
+          <div class="flex"><input id="login-senha" type="password" required value="123456" class="min-w-0 flex-1 px-3.5 py-2.5 rounded-l-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800 text-xs"/><button type="button" onclick="alternarVisibilidadeSenha('login-senha', this)" class="px-3 border border-l-0 border-stone-300 dark:border-stone-700 rounded-r-lg" aria-label="Mostrar senha"><span class="material-symbols-outlined">visibility</span></button></div>
+        </div>
+
+        <div class="flex items-center justify-between pt-1">
+          <label class="flex items-center gap-2 cursor-pointer text-stone-600 dark:text-stone-400">
+            <input type="checkbox" checked class="rounded border-stone-300 text-brand-800 focus:ring-brand-800"/>
+            <span>Lembrar neste navegador</span>
+          </label>
+          <a href="#" onclick="event.preventDefault(); window.showToast('Procure a Secretaria para redefinir sua senha.', 'info');" class="text-brand-800 dark:text-gold-400 hover:underline">Esqueceu a senha?</a>
+        </div>
+
+        <button type="submit" class="w-full py-3 bg-brand-800 hover:bg-brand-900 text-white font-bold rounded-lg shadow-md transition-all text-xs flex items-center justify-center gap-2">
+          <span class="material-symbols-outlined text-[18px]">login</span>
+          Entrar no Sistema
+        </button>
+      </form>
+
+      <p class="text-center text-xs text-stone-600 dark:text-stone-300">
+        Ainda não tem uma conta?
+        <button type="button" onclick="mostrarCadastro()" class="font-semibold text-brand-800 dark:text-gold-400 hover:underline">Cadastre-se</button>
+      </p>
+
+      <!-- Toggle de Tema no Login -->
+      <div class="pt-4 border-t border-stone-200 dark:border-stone-800 flex items-center justify-between text-xs text-stone-500">
+        <span>Conexão Segura SSL • LocalStorage / Supabase</span>
+        <button onclick="alternarTemaGlobal()" class="p-1.5 rounded bg-stone-100 dark:bg-darkcard text-stone-700 dark:text-stone-300">
+          <span class="material-symbols-outlined text-[18px] dark:hidden">dark_mode</span>
+          <span class="material-symbols-outlined text-[18px] hidden dark:inline">light_mode</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- CABEÇALHO SUPERIOR PRINCIPAL (Exibido após Login) -->
+  <div id="view-register" class="fixed inset-0 z-50 hidden items-center justify-center p-6 bg-[#FBFBFA] dark:bg-darkbg overflow-y-auto">
+    <div class="w-full max-w-md bg-white dark:bg-darksurface border border-stone-200 dark:border-stone-800 rounded-2xl shadow-xl p-8 space-y-6 my-auto">
+      <div class="text-center space-y-2">
+        <div class="w-14 h-14 rounded-2xl bg-brand-800 flex items-center justify-center text-gold-400 mx-auto mb-3"><span class="material-symbols-outlined" aria-hidden="true">person_add</span></div>
+        <h1 class="font-serif text-2xl font-bold text-stone-900 dark:text-stone-100">Criar conta</h1>
+        <p class="text-xs text-stone-500 dark:text-stone-400">Preencha seus dados para acessar o sistema</p>
+      </div>
+      <form id="form-register" class="space-y-4 text-xs font-ui">
+        <div><label for="register-name" class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">Nome completo</label><input id="register-name" type="text" required minlength="2" autocomplete="name" class="w-full px-3.5 py-2.5 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800"/></div>
+        <div><label for="register-email" class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">E-mail</label><input id="register-email" type="email" required autocomplete="email" class="w-full px-3.5 py-2.5 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800"/></div>
+        <div><label for="register-password" class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">Senha (mínimo de 8 caracteres)</label><div class="flex"><input id="register-password" type="password" required minlength="8" autocomplete="new-password" class="min-w-0 flex-1 px-3.5 py-2.5 rounded-l-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800"/><button type="button" onclick="alternarVisibilidadeSenha('register-password', this)" class="px-3 border border-l-0 border-stone-300 dark:border-stone-700 rounded-r-lg" aria-label="Mostrar senha"><span class="material-symbols-outlined">visibility</span></button></div></div>
+        <div><label for="register-confirm-password" class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">Confirmar senha</label><input id="register-confirm-password" type="password" required minlength="8" autocomplete="new-password" class="w-full px-3.5 py-2.5 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800"/></div>
+        <button type="submit" class="w-full py-3 bg-brand-800 hover:bg-brand-900 text-white font-bold rounded-lg shadow-md transition-all">Criar conta</button>
+      </form>
+      <p class="text-center text-xs text-stone-600 dark:text-stone-300">Já tem uma conta? <button type="button" onclick="mostrarLogin()" class="font-semibold text-brand-800 dark:text-gold-400 hover:underline">Voltar ao login</button></p>
+    </div>
+  </div>
+
+  <header id="main-header" class="sticky top-0 z-40 hidden bg-[#FBFBFA]/90 dark:bg-darksurface/90 backdrop-blur-md border-b border-stone-200/80 dark:border-stone-800">
+    <div class="max-w-[1360px] mx-auto px-6 h-20 flex items-center justify-between">
+      
+      <!-- Logo e Identidade -->
+      <div class="flex items-center gap-4">
+        <div class="w-10 h-10 rounded-lg bg-brand-800 flex items-center justify-center text-gold-400 font-serif font-bold text-xl shadow-md cursor-pointer" onclick="navegarPara('dashboard')">
+          <span class="material-symbols-outlined" aria-hidden="true">balance</span>
+        </div>
+        <div class="flex flex-col cursor-pointer" onclick="navegarPara('dashboard')">
+          <span class="font-serif text-xl font-bold tracking-tight text-brand-900 dark:text-stone-100 leading-none">Advocacia ETEC</span>
+          <span class="text-[11px] uppercase tracking-[0.2em] text-stone-500 dark:text-stone-400 font-medium font-ui mt-1">Gestão Jurídica Inteligente</span>
+        </div>
+      </div>
+
+      <!-- Navegação SPA Desktop -->
+      <nav id="staff-navigation-desktop" class="hidden md:flex items-center gap-7 font-ui text-sm">
+        <a class="nav-link active font-semibold text-brand-800 dark:text-gold-400 border-b-2 border-brand-800 dark:border-gold-400 pb-1 transition-colors cursor-pointer" data-view="dashboard" onclick="navegarPara('dashboard')">
+          Dashboard
+        </a>
+        <a class="nav-link text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 pb-1 transition-colors cursor-pointer" data-view="consultas" onclick="navegarPara('consultas')">
+          Consultas & Agenda
+        </a>
+        <a class="nav-link text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 pb-1 transition-colors cursor-pointer" data-view="advogados" onclick="navegarPara('advogados')">
+          Advogados
+        </a>
+        <a class="nav-link text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 pb-1 transition-colors cursor-pointer" data-view="clientes" onclick="navegarPara('clientes')">
+          Clientes
+        </a>
+        <a id="nav-cadastros" class="nav-link text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 pb-1 transition-colors cursor-pointer" data-view="cadastros" onclick="navegarPara('cadastros')">Cadastros</a>
+        <a class="nav-link text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 pb-1 transition-colors cursor-pointer" data-view="relatorios" onclick="navegarPara('relatorios')">
+          Relatórios
+        </a>
+        <a class="nav-link text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 pb-1 transition-colors cursor-pointer flex items-center gap-1" data-view="lawai" onclick="navegarPara('lawai')">
+          <span class="text-xs bg-brand-800 text-gold-400 px-1.5 py-0.5 rounded font-bold">IA</span> Law AI
+        </a>
+      </nav>
+
+      <!-- Utilitários e Alternância de Tema Light/Dark -->
+      <div class="flex items-center gap-4">
+        <!-- Toggle Modo Light / Dark -->
+        <button id="btn-theme-toggle" onclick="alternarTemaGlobal()" class="p-2 rounded-lg bg-stone-100 dark:bg-darkcard text-stone-700 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors" title="Alternar Modo Light / Dark">
+          <span class="material-symbols-outlined text-[20px] dark:hidden">dark_mode</span>
+          <span class="material-symbols-outlined text-[20px] hidden dark:inline">light_mode</span>
+        </button>
+
+        <div class="h-6 w-[1px] bg-stone-200 dark:bg-stone-800 hidden sm:block"></div>
+
+        <!-- Perfil da Secretária / Usuário + Botão Sair -->
+        <div class="flex items-center gap-3">
+          <div id="user-avatar-badge" class="w-8 h-8 rounded-full bg-stone-900 dark:bg-brand-900 text-gold-400 flex items-center justify-center text-xs font-semibold font-ui border border-stone-800">
+            SEC
+          </div>
+          <div class="text-left hidden xl:block">
+            <p id="user-display-name" class="text-xs font-semibold text-stone-900 dark:text-stone-100 leading-tight">Secretaria Central</p>
+            <p id="user-display-role" class="text-[11px] text-stone-500 dark:text-stone-400 font-ui">Operacional • ETEC Bragança</p>
+          </div>
+          <button onclick="fazerLogout()" class="p-1.5 text-stone-400 hover:text-red-600 transition-colors" title="Sair do Sistema">
+            <span class="material-symbols-outlined text-[20px]">logout</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navegação Responsiva Mobile -->
+    <div id="staff-navigation-mobile" class="md:hidden border-t border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-darkcard px-4 py-2 flex items-center justify-around text-xs font-ui overflow-x-auto">
+      <button class="nav-link-mobile px-2 py-1 font-semibold text-brand-800 dark:text-gold-400" onclick="navegarPara('dashboard')">Dashboard</button>
+      <button class="nav-link-mobile px-2 py-1 text-stone-600 dark:text-stone-300" onclick="navegarPara('consultas')">Consultas</button>
+      <button class="nav-link-mobile px-2 py-1 text-stone-600 dark:text-stone-300" onclick="navegarPara('advogados')">Advogados</button>
+      <button class="nav-link-mobile px-2 py-1 text-stone-600 dark:text-stone-300" onclick="navegarPara('clientes')">Clientes</button>
+      <button id="nav-cadastros-mobile" class="nav-link-mobile px-2 py-1 text-stone-600 dark:text-stone-300" onclick="navegarPara('cadastros')">Cadastros</button>
+      <button class="nav-link-mobile px-2 py-1 text-stone-600 dark:text-stone-300" onclick="navegarPara('relatorios')">Relatórios</button>
+      <button class="nav-link-mobile px-2 py-1 text-stone-600 dark:text-stone-300 font-bold" onclick="navegarPara('lawai')">Law AI</button>
+    </div>
+  </header>
+
+  <!-- CONTAINER PRINCIPAL SPA (Exibido após Login) -->
+  <main id="main-content" class="max-w-[1360px] mx-auto px-6 py-8 w-full flex-1 hidden">
+    
+    <!-- Cabeçalho de Impressão (Exclusivo @media print) -->
+    <div class="hidden print-header">
+      <div>
+        <h1 class="font-serif text-2xl font-bold text-brand-900">Advocacia ETEC — Sociedade de Advogados</h1>
+        <p class="text-xs text-stone-600">Relatório Operacional e Consolidado do Escritório</p>
+      </div>
+      <div class="text-right text-xs text-stone-500">
+        <p>OAB/SP nº 14.892</p>
+        <p id="print-date">Data: --/--/----</p>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- VISÃO 1: DASHBOARD DA SECRETÁRIA (F6) -->
+    <!-- ======================================================== -->
+    <section id="view-dashboard" class="spa-view space-y-8">
+      
+      <!-- Faixa de Boas-Vindas & Ações Rápidas -->
+      <div class="flex flex-col md:flex-row md:items-end justify-between pb-6 border-b border-stone-200/80 dark:border-stone-800 gap-6">
+        <div>
+          <div class="flex items-center gap-3 text-xs uppercase tracking-widest text-stone-500 dark:text-stone-400 font-ui mb-2">
+            <span id="dash-current-date">Carregando data...</span>
+            <span class="text-stone-300 dark:text-stone-700">•</span>
+            <span class="inline-flex items-center gap-1.5 text-emerald-800 dark:text-emerald-400 font-medium">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Sistema Operacional Ativo
+            </span>
+          </div>
+          <h1 class="text-3xl lg:text-4xl font-serif text-stone-900 dark:text-stone-100 tracking-tight">
+            Painel da Secretaria
+          </h1>
+        </div>
+
+        <!-- Atalhos Rápidos (F6) -->
+        <div class="flex items-center gap-3 font-ui">
+          <button id="btn-dash-novo-cliente" onclick="abrirModalCliente()" class="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-stone-800 dark:text-stone-200 bg-white dark:bg-darksurface border border-stone-300 dark:border-stone-700 rounded-lg hover:bg-stone-50 dark:hover:bg-darkcard transition-all shadow-sm">
+            <span class="material-symbols-outlined text-[18px]">person_add</span>
+            Novo Cliente
+          </button>
+          <button id="btn-dash-nova-consulta" onclick="abrirModalConsulta()" class="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-white bg-brand-800 hover:bg-brand-900 dark:bg-brand-700 dark:hover:bg-brand-800 rounded-lg transition-all shadow-sm">
+            <span class="material-symbols-outlined text-[18px]">add_circle</span>
+            Nova Consulta
+          </button>
+        </div>
+      </div>
+
+      <!-- Cards de Métricas Principais (F6) -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- Card 1: Consultas Hoje -->
+        <div class="p-6 bg-white dark:bg-darksurface border border-stone-200/80 dark:border-stone-800 rounded-xl shadow-sm cursor-pointer hover:border-brand-800 transition-colors" onclick="navegarPara('consultas')">
+          <div class="flex items-center justify-between text-stone-400 mb-2">
+            <span class="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 font-ui">Consultas de Hoje</span>
+            <span class="material-symbols-outlined text-brand-700 dark:text-gold-400 text-[22px]">calendar_today</span>
+          </div>
+          <div class="flex items-baseline gap-2">
+            <span id="metric-consultas-hoje" class="text-3xl font-serif font-bold text-stone-900 dark:text-stone-100">0</span>
+            <span class="text-xs text-stone-500 dark:text-stone-400 font-ui">agendadas</span>
+          </div>
+        </div>
+
+        <!-- Card 2: Clientes Cadastrados -->
+        <div class="p-6 bg-white dark:bg-darksurface border border-stone-200/80 dark:border-stone-800 rounded-xl shadow-sm cursor-pointer hover:border-brand-800 transition-colors" onclick="navegarPara('clientes')">
+          <div class="flex items-center justify-between text-stone-400 mb-2">
+            <span class="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 font-ui">Total de Clientes</span>
+            <span class="material-symbols-outlined text-stone-400 text-[22px]">group</span>
+          </div>
+          <div class="flex items-baseline gap-2">
+            <span id="metric-total-clientes" class="text-3xl font-serif font-bold text-stone-900 dark:text-stone-100">0</span>
+            <span class="text-xs text-emerald-600 dark:text-emerald-400 font-ui font-medium">ativos</span>
+          </div>
+        </div>
+
+        <!-- Card 3: Advogados na Banca -->
+        <div class="p-6 bg-white dark:bg-darksurface border border-stone-200/80 dark:border-stone-800 rounded-xl shadow-sm cursor-pointer hover:border-brand-800 transition-colors" onclick="navegarPara('advogados')">
+          <div class="flex items-center justify-between text-stone-400 mb-2">
+            <span class="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 font-ui">Corpo Jurídico</span>
+            <span class="material-symbols-outlined text-stone-400 text-[22px]">gavel</span>
+          </div>
+          <div class="flex items-baseline gap-2">
+            <span id="metric-total-advogados" class="text-3xl font-serif font-bold text-stone-900 dark:text-stone-100">0</span>
+            <span class="text-xs text-stone-500 dark:text-stone-400 font-ui">profissionais</span>
+          </div>
+        </div>
+
+        <!-- Card 4: Faturamento do Mês -->
+        <div class="p-6 bg-white dark:bg-darksurface border border-stone-200/80 dark:border-stone-800 rounded-xl shadow-sm cursor-pointer hover:border-brand-800 transition-colors" onclick="navegarPara('relatorios')">
+          <div class="flex items-center justify-between text-stone-400 mb-2">
+            <span class="text-xs uppercase tracking-wider font-semibold text-stone-500 dark:text-stone-400 font-ui">Honorários do Mês</span>
+            <span class="material-symbols-outlined text-gold-600 text-[22px]">payments</span>
+          </div>
+          <div class="flex items-baseline gap-2">
+            <span id="metric-faturamento-mes" class="text-2xl lg:text-3xl font-serif font-bold text-brand-800 dark:text-gold-400">R$ 0,00</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Layout de 2 Colunas: Próximas Consultas & Advogados Livres (F6) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        
+        <!-- Coluna Esquerda: Próximas 5 Consultas -->
+        <div class="lg:col-span-8 space-y-6">
+          <div class="bg-white dark:bg-darksurface border border-stone-200/80 dark:border-stone-800 rounded-xl p-6 shadow-sm">
+            <div class="flex items-center justify-between pb-4 border-b border-stone-100 dark:border-stone-800">
+              <div>
+                <h2 class="text-xl font-serif font-semibold text-stone-900 dark:text-stone-100">Próximas Consultas</h2>
+                <p class="text-xs text-stone-500 dark:text-stone-400 font-ui mt-0.5">Atendimentos pautados na agenda</p>
+              </div>
+              <a class="nav-link text-xs font-ui text-brand-800 dark:text-gold-400 hover:underline cursor-pointer font-semibold inline-flex items-center gap-1" data-view="consultas" onclick="navegarPara('consultas')">
+                Ver agenda completa ?
+              </a>
+            </div>
+
+            <!-- Tabela de Próximas Consultas -->
+            <div class="overflow-x-auto mt-4">
+              <table class="w-full text-left text-xs font-ui">
+                <thead>
+                  <tr class="border-b border-stone-200 dark:border-stone-800 text-stone-400 dark:text-stone-400 uppercase tracking-wider font-semibold">
+                    <th class="py-3 px-2">Data & Hora</th>
+                    <th class="py-3 px-2">Cliente</th>
+                    <th class="py-3 px-2">Advogado</th>
+                    <th class="py-3 px-2">Valor Honorário</th>
+                    <th class="py-3 px-2 text-right">Ação</th>
+                  </tr>
+                </thead>
+                <tbody id="dash-proximas-consultas-list" class="divide-y divide-stone-100 dark:divide-stone-800/60">
+                  <!-- Injetado dinamicamente via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Coluna Direita: Advogados Livres no Momento (F6) -->
+        <div class="lg:col-span-4 space-y-6">
+          <div class="bg-white dark:bg-darksurface border border-stone-200/80 dark:border-stone-800 rounded-xl p-6 shadow-sm">
+            <div class="flex items-center justify-between pb-4 border-b border-stone-100 dark:border-stone-800">
+              <div>
+                <h2 class="text-base font-serif font-semibold text-stone-900 dark:text-stone-100">Advogados Livres Agora</h2>
+                <p class="text-xs text-stone-500 dark:text-stone-400 font-ui mt-0.5">Disponibilidade em tempo real</p>
+              </div>
+              <span id="badge-advogados-livres-count" class="text-xs font-ui px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 rounded font-semibold">
+                0 livres
+              </span>
+            </div>
+
+            <!-- Lista de Advogados Livres -->
+            <div id="dash-advogados-livres-list" class="divide-y divide-stone-100 dark:divide-stone-800 mt-2">
+              <!-- Injetado dinamicamente via JS -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ======================================================== -->
+    <!-- VISÃO 2: CADASTRO E LISTA DE CLIENTES (F1) -->
+    <!-- ======================================================== -->
+    <section id="view-area-cliente" class="spa-view hidden space-y-6">
+      <div class="pb-5 border-b border-stone-200 dark:border-stone-800">
+        <span class="text-xs uppercase tracking-widest text-stone-500">Área do cliente</span>
+        <h1 class="text-3xl font-serif mt-1">Olá, <span id="cliente-portal-nome">cliente</span></h1>
+        <p class="text-sm text-stone-500 mt-2">Acompanhe seus horários e solicite novos atendimentos.</p>
+      </div>
+      <div class="flex flex-wrap gap-3">
+        <a href="tel:+551155550100" class="inline-flex items-center gap-2 px-4 py-3 rounded-lg bg-brand-800 text-white font-semibold"><span class="material-symbols-outlined">call</span>Agendar consulta · ligar para a secretaria</a>
+        <button onclick="renderPortalCliente()" class="px-4 py-3 rounded-lg border border-stone-300 dark:border-stone-700">Ver próximas consultas</button>
+        <button onclick="navegarPara('lawai')" class="px-4 py-3 rounded-lg border border-brand-800 text-brand-800 dark:text-gold-400 dark:border-gold-400">Acessar assistente de I.A.</button>
+      </div>
+      <div class="bg-white dark:bg-darksurface rounded-xl border border-stone-200 dark:border-stone-800 p-5">
+        <h2 class="font-serif text-xl font-semibold mb-4">Suas próximas consultas</h2>
+        <div id="cliente-proximas-consultas" class="space-y-3"></div>
+      </div>
+      <section class="bg-white dark:bg-darksurface rounded-xl border border-stone-200 dark:border-stone-800 p-5 space-y-4">
+        <div><span class="text-xs uppercase tracking-widest text-stone-500">Sobre o escritório</span><h2 class="font-serif text-xl font-semibold mt-1">ETEC Advocacia</h2></div>
+        <p class="text-sm text-stone-600 dark:text-stone-300">Escritório fictício criado para demonstração do sistema. Nossa equipe oferece atendimento jurídico nas áreas cível, trabalhista, família e empresarial, com acompanhamento próximo em cada etapa.</p>
+        <div class="grid gap-3 sm:grid-cols-2 text-sm">
+          <div class="rounded-lg bg-stone-50 dark:bg-darkcard p-4"><h3 class="font-semibold">Secretaria</h3><p class="mt-1 text-stone-600 dark:text-stone-300">Telefone demonstrativo (fictício): <a class="font-semibold underline" href="tel:+551155550100">(11) 5555-0100</a></p><p class="mt-1 text-xs text-stone-500">O número não corresponde a um contato real.</p></div>
+          <div class="rounded-lg bg-stone-50 dark:bg-darkcard p-4"><h3 class="font-semibold">Atendimento</h3><p class="mt-1 text-stone-600 dark:text-stone-300">De segunda a sexta, das 9h às 18h.</p><p class="mt-1 text-xs text-stone-500">Informações fictícias para fins de demonstração.</p></div>
+          <div class="rounded-lg bg-stone-50 dark:bg-darkcard p-4 sm:col-span-2"><h3 class="font-semibold">Endereço fictício</h3><p class="mt-1 text-stone-600 dark:text-stone-300">Rua das Palmeiras, 120 · Centro · Bragança Paulista – SP</p></div>
+        </div>
+      </section>
+    </section>
+    <section id="view-area-advogado" class="spa-view hidden space-y-6"><div class="pb-5 border-b border-stone-200 dark:border-stone-800"><span class="text-xs uppercase tracking-widest text-stone-500">Área do advogado</span><h1 class="text-3xl font-serif mt-1">Minha agenda</h1><p id="adv-portal-nome" class="text-sm text-stone-500 mt-2"></p></div><div id="advogado-agenda-consultas" class="grid gap-3"></div></section>
+    <section id="view-cadastros" class="spa-view hidden space-y-6">
+      <div class="pb-5 border-b border-stone-200 dark:border-stone-800"><span class="text-xs uppercase tracking-widest text-stone-500">Acesso da secretaria</span><h1 class="text-3xl font-serif mt-1">Cadastro de contas</h1><p class="text-sm text-stone-500 mt-2">Crie contas de clientes e advogados para acesso ao sistema.</p></div>
+      <div class="grid gap-6 xl:grid-cols-2">
+        <form id="form-cadastro-cliente-conta" class="bg-white dark:bg-darksurface rounded-xl border border-stone-200 dark:border-stone-800 p-5 space-y-4">
+          <h2 class="font-serif text-xl font-semibold">Nova conta de cliente</h2>
+          <label class="block text-sm font-medium">Nome completo<input id="cad-cliente-nome" type="text" required minlength="2" autocomplete="name" class="mt-1 w-full rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard"/></label>
+          <label class="block text-sm font-medium">E-mail de acesso<input id="cad-cliente-email" type="email" required autocomplete="email" class="mt-1 w-full rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard"/></label>
+          <div class="grid gap-3 sm:grid-cols-2"><label class="block text-sm font-medium">CPF/CNPJ<input id="cad-cliente-cpf" type="text" required class="mt-1 w-full rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard"/></label><label class="block text-sm font-medium">Telefone<input id="cad-cliente-telefone" type="tel" required class="mt-1 w-full rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard"/></label></div>
+          <label class="block text-sm font-medium">Endereço<input id="cad-cliente-endereco" type="text" class="mt-1 w-full rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard"/></label>
+          <label class="block text-sm font-medium">Senha inicial<input id="cad-cliente-senha" type="password" required minlength="8" autocomplete="new-password" class="mt-1 w-full rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard"/></label>
+          <label class="block text-sm font-medium">Confirmar senha<input id="cad-cliente-senha-confirma" type="password" required minlength="8" autocomplete="new-password" class="mt-1 w-full rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard"/></label>
+          <button type="submit" class="w-full rounded-lg bg-brand-800 px-4 py-3 font-semibold text-white">Cadastrar cliente e criar acesso</button>
+        </form>
+        <form id="form-cadastro-advogado-conta" class="bg-white dark:bg-darksurface rounded-xl border border-stone-200 dark:border-stone-800 p-5 space-y-4">
+          <h2 class="font-serif text-xl font-semibold">Nova conta de advogado</h2>
+          <label class="block text-sm font-medium">Nome completo<input id="cad-advogado-nome" type="text" required minlength="2" class="mt-1 w-full rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard"/></label>
+          <label class="block text-sm font-medium">E-mail de acesso<input id="cad-advogado-email" type="email" required autocomplete="email" class="mt-1 w-full rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard"/></label>
+          <div class="grid gap-3 sm:grid-cols-2"><label class="block text-sm font-medium">OAB<input id="cad-advogado-oab" type="text" required placeholder="OAB/SP 000000" class="mt-1 w-full rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard"/></label><label class="block text-sm font-medium">Senioridade<select id="cad-advogado-nivel" required class="mt-1 w-full rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard"><option value="Junior">Júnior</option><option value="Pleno">Pleno</option><option value="Senior">Sênior</option><option value="Especialista">Especialista</option></select></label></div>
+          <label class="block text-sm font-medium">Área de atuação<input id="cad-advogado-area" type="text" class="mt-1 w-full rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard"/></label>
+          <label class="block text-sm font-medium">Senha inicial<input id="cad-advogado-senha" type="password" required minlength="8" autocomplete="new-password" class="mt-1 w-full rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard"/></label>
+          <label class="block text-sm font-medium">Confirmar senha<input id="cad-advogado-senha-confirma" type="password" required minlength="8" autocomplete="new-password" class="mt-1 w-full rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard"/></label>
+          <button type="submit" class="w-full rounded-lg bg-brand-800 px-4 py-3 font-semibold text-white">Cadastrar advogado e criar acesso</button>
+        </form>
+      </div>
+    </section>
+    <section id="view-clientes" class="spa-view hidden space-y-6">
+      <div class="flex flex-col md:flex-row md:items-end justify-between pb-6 border-b border-stone-200/80 dark:border-stone-800 gap-4">
+        <div>
+          <span class="text-xs uppercase tracking-widest text-stone-500 dark:text-stone-400 font-ui font-medium">Gestão de Carteira</span>
+          <h1 class="text-3xl font-serif text-stone-900 dark:text-stone-100 tracking-tight mt-1">Clientes</h1>
+        </div>
+        <button id="btn-novo-cliente" onclick="abrirModalCliente()" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-brand-800 hover:bg-brand-900 text-white text-xs font-semibold shadow-sm transition-all">
+          <span class="material-symbols-outlined text-[18px]">add</span>
+          Novo Cliente
+        </button>
+      </div>
+
+      <!-- Barra de Busca por Nome (F1) -->
+      <div class="flex flex-col sm:flex-row items-center gap-4">
+        <div class="relative flex-1 w-full">
+          <span class="material-symbols-outlined absolute left-3.5 top-2.5 text-stone-400 text-[20px]">search</span>
+          <input id="input-busca-cliente" type="text" placeholder="Buscar cliente por nome, CPF/CNPJ ou e-mail..." class="w-full pl-10 pr-4 py-2 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-darksurface text-stone-800 dark:text-stone-100 text-xs focus:outline-none focus:border-brand-800"/>
+        </div>
+      </div>
+
+      <!-- Tabela de Clientes -->
+      <div class="bg-white dark:bg-darksurface rounded-xl border border-border-subtle dark:border-stone-800 overflow-hidden shadow-sm">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="border-b border-stone-200 dark:border-stone-800 text-stone-400 uppercase tracking-wider bg-stone-50 dark:bg-darkcard/50 font-semibold">
+                <th class="py-3.5 px-6">Cliente / Razão Social</th>
+                <th class="py-3.5 px-6">CPF / CNPJ</th>
+                <th class="py-3.5 px-6">Contato</th>
+                <th class="py-3.5 px-6">Endereço</th>
+                <th class="py-3.5 px-6 text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tabela-clientes-list" class="divide-y divide-stone-100 dark:divide-stone-800">
+              <!-- Injetado dinamicamente via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================== -->
+    <!-- VISÃO 3: CADASTRO E BANCA DE ADVOGADOS (F2) -->
+    <!-- ======================================================== -->
+    <section id="view-advogados" class="spa-view hidden space-y-6">
+      <div class="flex flex-col md:flex-row md:items-end justify-between pb-6 border-b border-stone-200/80 dark:border-stone-800 gap-4">
+        <div>
+          <span class="text-xs uppercase tracking-widest text-stone-500 dark:text-stone-400 font-ui font-medium">Corpo Jurídico</span>
+          <h1 class="text-3xl font-serif text-stone-900 dark:text-stone-100 tracking-tight mt-1">Advogados</h1>
+        </div>
+        <button id="btn-novo-advogado" onclick="abrirModalAdvogado()" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-brand-800 hover:bg-brand-900 text-white text-xs font-semibold shadow-sm transition-all">
+          <span class="material-symbols-outlined text-[18px]">person_add</span>
+          Novo Advogado
+        </button>
+      </div>
+
+      <!-- Lista / Grid de Advogados -->
+      <div id="grid-advogados-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Injetado dinamicamente via JS -->
+      </div>
+    </section>
+
+    <!-- ======================================================== -->
+    <!-- VISÃO 4: CONSULTAS & AGENDAMENTO COM CÁLCULO OAB (F3 + F4) -->
+    <!-- ======================================================== -->
+    <section id="view-consultas" class="spa-view hidden space-y-6">
+      <div class="flex flex-col md:flex-row md:items-end justify-between pb-6 border-b border-stone-200/80 dark:border-stone-800 gap-4">
+        <div>
+          <span class="text-xs uppercase tracking-widest text-stone-500 dark:text-stone-400 font-ui font-medium">Agendamento & Tabela OAB</span>
+          <h1 class="text-3xl font-serif text-stone-900 dark:text-stone-100 tracking-tight mt-1">Consultas & Agenda</h1>
+        </div>
+        <button id="btn-nova-consulta" onclick="abrirModalConsulta()" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-brand-800 hover:bg-brand-900 text-white text-xs font-semibold shadow-sm transition-all">
+          <span class="material-symbols-outlined text-[18px]">add_circle</span>
+          Agendar Nova Consulta
+        </button>
+      </div>
+
+      <!-- Agenda Diária por Advogado (F4) -->
+      <div class="bg-white dark:bg-darksurface p-6 rounded-xl border border-stone-200 dark:border-stone-800 shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <h2 class="text-lg font-serif font-semibold text-stone-900 dark:text-stone-100">Grade da Agenda por Advogado</h2>
+          <div class="flex items-center gap-3 w-full sm:w-auto">
+            <select id="select-agenda-advogado" class="px-3 py-1.5 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-xs font-ui text-stone-900 dark:text-stone-100">
+              <!-- Advogados injetados via JS -->
+            </select>
+            <input id="input-agenda-data" type="date" class="px-3 py-1.5 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-xs font-ui text-stone-900 dark:text-stone-100"/>
+          </div>
+        </div>
+
+        <!-- Tabela de Horários Diários da Agenda -->
+        <div id="grade-horarios-container" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 pt-2">
+          <!-- Injetado dinamicamente via JS -->
+        </div>
+      </div>
+
+      <!-- Tabela de Consultas Agendadas -->
+      <div class="bg-white dark:bg-darksurface rounded-xl border border-stone-200 dark:border-stone-800 overflow-hidden shadow-sm">
+        <div class="p-4 border-b border-stone-100 dark:border-stone-800">
+          <h3 class="font-serif font-semibold text-stone-900 dark:text-stone-100 text-base">Todas as Consultas Cadastradas</h3>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="border-b border-stone-200 dark:border-stone-800 text-stone-400 uppercase tracking-wider bg-stone-50 dark:bg-darkcard/50 font-semibold">
+                <th class="py-3 px-4">Data & Horário</th>
+                <th class="py-3 px-4">Cliente</th>
+                <th class="py-3 px-4">Advogado</th>
+                <th class="py-3 px-4">Serviço OAB</th>
+                <th class="py-3 px-4">Valor Honorário</th>
+                <th class="py-3 px-4">Status</th>
+                <th class="py-3 px-4 text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tabela-consultas-list" class="divide-y divide-stone-100 dark:divide-stone-800">
+              <!-- Injetado dinamicamente via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================== -->
+    <!-- VISÃO 5: RELATÓRIOS & GRÁFICOS CHART.JS (F5) -->
+    <!-- ======================================================== -->
+    <section id="view-relatorios" class="spa-view hidden space-y-8">
+      <div class="flex flex-col md:flex-row md:items-end justify-between pb-6 border-b border-stone-200/80 dark:border-stone-800 gap-4">
+        <div>
+          <span class="text-xs uppercase tracking-widest text-stone-500 dark:text-stone-400 font-ui font-medium">Relatórios Gerenciais</span>
+          <h1 class="text-3xl font-serif text-stone-900 dark:text-stone-100 tracking-tight mt-1">Acompanhamento e Impressão</h1>
+        </div>
+        <button onclick="window.print()" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-darksurface text-stone-800 dark:text-stone-200 text-xs font-semibold hover:bg-stone-50 transition-all shadow-sm">
+          <span class="material-symbols-outlined text-[18px] text-brand-800 dark:text-gold-400">print</span>
+          Imprimir Relatório
+        </button>
+      </div>
+
+      <!-- Relatório 1: Consultas do Dia (F5) -->
+      <div class="bg-white dark:bg-darksurface p-6 rounded-xl border border-stone-200 dark:border-stone-800 shadow-sm print-card space-y-4">
+        <h2 class="text-xl font-serif font-semibold text-stone-900 dark:text-stone-100">1. Consultas de Hoje</h2>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs font-ui">
+            <thead>
+              <tr class="border-b border-stone-200 dark:border-stone-800 text-stone-400 uppercase tracking-wider font-semibold">
+                <th class="py-2 px-2">Horário</th>
+                <th class="py-2 px-2">Cliente</th>
+                <th class="py-2 px-2">Advogado</th>
+                <th class="py-2 px-2">Serviço</th>
+                <th class="py-2 px-2 text-right">Valor</th>
+              </tr>
+            </thead>
+            <tbody id="relatorio-consultas-hoje-list" class="divide-y divide-stone-100 dark:divide-stone-800">
+              <!-- Injetado dinamicamente via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Relatório 2: Faturamento por Advogado + Gráfico Chart.js (F5) -->
+      <div class="bg-white dark:bg-darksurface p-6 rounded-xl border border-stone-200 dark:border-stone-800 shadow-sm print-card space-y-6">
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div>
+            <h2 class="text-xl font-serif font-semibold text-stone-900 dark:text-stone-100">2. Faturamento por Advogado</h2>
+            <p class="text-xs text-stone-500 font-ui mt-0.5">Visão do total de honorários acumulados</p>
+          </div>
+        </div>
+
+        <!-- Canvas Chart.js -->
+        <div class="relative w-full h-72 no-print">
+          <canvas id="chartFaturamento"></canvas>
+        </div>
+
+        <!-- Tabela Faturamento por Advogado -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs font-ui">
+            <thead>
+              <tr class="border-b border-stone-200 dark:border-stone-800 text-stone-400 uppercase tracking-wider font-semibold">
+                <th class="py-2 px-2">Advogado</th>
+                <th class="py-2 px-2">Nível</th>
+                <th class="py-2 px-2">Total de Consultas</th>
+                <th class="py-2 px-2 text-right">Faturamento Acumulado</th>
+              </tr>
+            </thead>
+            <tbody id="relatorio-faturamento-advogado-list" class="divide-y divide-stone-100 dark:divide-stone-800">
+              <!-- Injetado via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Relatório 3: Lista Completa de Clientes (F5) -->
+      <div class="bg-white dark:bg-darksurface p-6 rounded-xl border border-stone-200 dark:border-stone-800 shadow-sm print-card space-y-4">
+        <h2 class="text-xl font-serif font-semibold text-stone-900 dark:text-stone-100">3. Relação Geral de Clientes Cadastrados</h2>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs font-ui">
+            <thead>
+              <tr class="border-b border-stone-200 dark:border-stone-800 text-stone-400 uppercase tracking-wider font-semibold">
+                <th class="py-2 px-2">Cliente</th>
+                <th class="py-2 px-2">CPF/CNPJ</th>
+                <th class="py-2 px-2">Telefone</th>
+                <th class="py-2 px-2">E-mail</th>
+              </tr>
+            </thead>
+            <tbody id="relatorio-clientes-geral-list" class="divide-y divide-stone-100 dark:divide-stone-800">
+              <!-- Injetado via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================== -->
+    <!-- VISÃO 6: ASSISTENTE LAW AI (chat interativo) -->
+    <!-- ======================================================== -->
+    <section id="view-lawai" class="spa-view hidden space-y-6">
+      <div class="flex flex-col md:flex-row md:items-end justify-between pb-6 border-b border-stone-200/80 dark:border-stone-800 gap-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-0.5 bg-brand-800 text-gold-400 font-bold text-xs rounded">Law AI</span>
+            <span class="text-xs uppercase tracking-widest text-stone-500 dark:text-stone-400 font-ui font-medium">Assistente Jurídico Inteligente</span>
+          </div>
+          <h1 class="text-3xl font-serif text-stone-900 dark:text-stone-100 tracking-tight mt-1">Consultoria Jurídica IA</h1>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-darksurface border border-stone-200 dark:border-stone-800 rounded-xl p-6 shadow-sm max-w-3xl mx-auto flex flex-col h-[520px]">
+        <!-- Mensagens do Chat -->
+        <div id="lawai-chat-box" class="flex-1 overflow-y-auto space-y-4 pr-2 font-ui text-xs">
+          <div class="flex items-start gap-3">
+            <div class="w-8 h-8 rounded-full bg-brand-800 text-gold-400 font-bold flex items-center justify-center shrink-0">
+              AI
+            </div>
+            <div class="bg-stone-100 dark:bg-darkcard p-3 rounded-lg text-stone-800 dark:text-stone-200 max-w-[80%] leading-relaxed">
+              Olá, doutor(a)! Sou a <strong>Law AI</strong>, sua assistente jurídica. Posso ajudar na identificação de cláusulas contratuais, artigos do Código Penal/Civil e estimativas de penas. Em que posso ser útil hoje?
+            </div>
+          </div>
+        </div>
+
+        <!-- Input do Chat -->
+        <div class="mt-4 pt-3 border-t border-stone-200 dark:border-stone-800 flex items-center gap-2">
+          <input id="lawai-input-msg" type="text" placeholder="Digite sua dúvida jurídica (ex: pena para estelionato)..." class="flex-1 px-4 py-2.5 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 text-xs focus:outline-none focus:border-brand-800"/>
+          <button id="lawai-btn-send" onclick="enviarMensagemLawAI()" class="px-4 py-2.5 bg-brand-800 hover:bg-brand-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1">
+            <span class="material-symbols-outlined text-[18px]">send</span>
+            Enviar
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- RODAPÉ DA APLICAÇÃO -->
+  <footer id="main-footer" class="mt-auto border-t border-stone-200/80 dark:border-stone-800 bg-white dark:bg-darksurface hidden">
+    <div class="max-w-[1360px] mx-auto px-6 py-6 flex flex-col sm:flex-row items-center justify-between text-xs text-stone-500 dark:text-stone-400 font-ui gap-4">
+      <div class="flex items-center gap-2">
+        <span class="font-serif text-stone-800 dark:text-stone-200 font-semibold">Advocacia ETEC</span>
+        <span>—</span>
+        <span>Sociedade de Advogados inscrita na OAB/SP sob o nº 14.892</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ======================================================== -->
+  <!-- MODAIS (FORMULÁRIOS DE CADASTRO COM VALIDAÇÃO) -->
+  <!-- ======================================================== -->
+
+  <!-- MODAL 1: CLIENTE (F1) -->
+  <div id="modal-cliente" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs modal-backdrop" onclick="fecharModalOnBackdrop(event, 'modal-cliente')">
+    <div class="bg-white dark:bg-darksurface w-full max-w-lg rounded-xl shadow-xl border border-stone-200 dark:border-stone-800 overflow-hidden" onclick="event.stopPropagation()">
+      <div class="px-6 py-4 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between">
+        <h2 id="modal-cliente-titulo" class="font-serif text-lg font-semibold text-stone-900 dark:text-stone-100">Cadastrar Cliente</h2>
+        <button class="btn-close-modal text-stone-400 hover:text-stone-600" onclick="fecharModal('modal-cliente')"><span class="material-symbols-outlined">close</span></button>
+      </div>
+
+      <form id="form-cliente" class="p-6 space-y-4 text-xs font-ui">
+        <input type="hidden" id="cliente-id"/>
+        <div>
+          <label class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">Nome Completo / Razão Social *</label>
+          <input id="cliente-nome" type="text" required class="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800"/>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">CPF / CNPJ *</label>
+            <input id="cliente-cpf" type="text" required class="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800"/>
+          </div>
+          <div>
+            <label class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">Telefone *</label>
+            <input id="cliente-telefone" type="text" required class="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800"/>
+          </div>
+        </div>
+        <div>
+          <label class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">E-mail *</label>
+          <input id="cliente-email" type="email" required class="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800"/>
+        </div>
+        <div>
+          <label class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">Endereço (opcional)</label>
+          <input id="cliente-endereco" type="text" class="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800"/>
+        </div>
+
+        <div class="pt-3 flex justify-end gap-2">
+          <button type="button" class="btn-close-modal px-4 py-2 text-stone-600 dark:text-stone-400 font-semibold" onclick="fecharModal('modal-cliente')">Cancelar</button>
+          <button type="submit" class="px-4 py-2 bg-brand-800 hover:bg-brand-900 text-white rounded-lg font-semibold shadow-sm">Salvar Cliente</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 2: ADVOGADO (F2) -->
+  <div id="modal-advogado" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs modal-backdrop" onclick="fecharModalOnBackdrop(event, 'modal-advogado')">
+    <div class="bg-white dark:bg-darksurface w-full max-w-lg rounded-xl shadow-xl border border-stone-200 dark:border-stone-800 overflow-hidden" onclick="event.stopPropagation()">
+      <div class="px-6 py-4 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between">
+        <h2 id="modal-advogado-titulo" class="font-serif text-lg font-semibold text-stone-900 dark:text-stone-100">Cadastrar Advogado</h2>
+        <button class="btn-close-modal text-stone-400 hover:text-stone-600" onclick="fecharModal('modal-advogado')"><span class="material-symbols-outlined">close</span></button>
+      </div>
+
+      <form id="form-advogado" class="p-6 space-y-4 text-xs font-ui">
+        <input type="hidden" id="advogado-id"/>
+        <div>
+          <label class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">Nome Completo *</label>
+          <input id="advogado-nome" type="text" required class="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800"/>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">Número da OAB *</label>
+            <input id="advogado-oab" type="text" placeholder="OAB/SP 000000" required class="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800"/>
+          </div>
+          <div>
+            <label class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">Nível / Senioridade *</label>
+            <select id="advogado-nivel" required class="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800">
+              <option value="Junior">Junior (+0%)</option>
+              <option value="Pleno">Pleno (+10%)</option>
+              <option value="Senior">Senior (+25%)</option>
+              <option value="Especialista">Especialista (+40%)</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">Área de Atuação (opcional)</label>
+          <input id="advogado-area" type="text" placeholder="Ex: Trabalhista, Cível..." class="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800"/>
+        </div>
+        
+        <div class="border-t border-stone-200 dark:border-stone-800 pt-3">
+          <label class="block font-semibold mb-2 text-stone-800 dark:text-stone-200">Horário de Trabalho (Manhã e Tarde)</label>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <span class="text-[11px] text-stone-500">Manhã (Início / Fim)</span>
+              <div class="flex gap-1 mt-1">
+                <input id="advogado-hm-ini" type="time" value="09:00" required class="w-full px-2 py-1.5 rounded border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 text-xs"/>
+                <input id="advogado-hm-fim" type="time" value="12:00" required class="w-full px-2 py-1.5 rounded border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 text-xs"/>
+              </div>
+            </div>
+            <div>
+              <span class="text-[11px] text-stone-500">Tarde (Início / Fim)</span>
+              <div class="flex gap-1 mt-1">
+                <input id="advogado-ht-ini" type="time" value="14:00" required class="w-full px-2 py-1.5 rounded border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 text-xs"/>
+                <input id="advogado-ht-fim" type="time" value="18:00" required class="w-full px-2 py-1.5 rounded border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 text-xs"/>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-3 flex justify-end gap-2">
+          <button type="button" class="btn-close-modal px-4 py-2 text-stone-600 dark:text-stone-400 font-semibold" onclick="fecharModal('modal-advogado')">Cancelar</button>
+          <button type="submit" class="px-4 py-2 bg-brand-800 hover:bg-brand-900 text-white rounded-lg font-semibold shadow-sm">Salvar Advogado</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 3: AGENDAR CONSULTA COM CÁLCULO OAB (F3 + F4) -->
+  <div id="modal-consulta" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs modal-backdrop" onclick="fecharModalOnBackdrop(event, 'modal-consulta')">
+    <div class="bg-white dark:bg-darksurface w-full max-w-xl rounded-xl shadow-xl border border-stone-200 dark:border-stone-800 overflow-hidden" onclick="event.stopPropagation()">
+      <div class="px-6 py-4 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between">
+        <h2 class="font-serif text-lg font-semibold text-stone-900 dark:text-stone-100">Agendar Consulta Jurídica</h2>
+        <button class="btn-close-modal text-stone-400 hover:text-stone-600" onclick="fecharModal('modal-consulta')"><span class="material-symbols-outlined">close</span></button>
+      </div>
+
+      <form id="form-consulta" class="p-6 space-y-4 text-xs font-ui">
+        <input type="hidden" id="consulta-id"/>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">Cliente *</label>
+            <select id="consulta-cliente" required class="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800">
+              <!-- Clientes injetados via JS -->
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">Advogado *</label>
+            <select id="consulta-advogado" required class="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800">
+              <!-- Advogados injetados via JS -->
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">Serviço OAB *</label>
+            <select id="consulta-servico" required class="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800">
+              <!-- Serviços injetados via JS -->
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">Valor da Causa (se houver)</label>
+          <select id="consulta-valor-causa" class="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100"><option value="">Não se aplica / sem valor definido</option><option value="5000">Até R$ 5.000</option><option value="10000">R$ 5.001 a R$ 10.000</option><option value="25000">R$ 10.001 a R$ 25.000</option><option value="50000">R$ 25.001 a R$ 50.000</option><option value="100000">R$ 50.001 a R$ 100.000</option><option value="250000">R$ 100.001 a R$ 250.000</option><option value="500000">Acima de R$ 250.000</option></select>
+          </div>
+        </div>
+
+        <!-- PAINEL DE CÁLCULO DE HONORÁRIOS OAB AUTOMÁTICO (F3) -->
+        <div class="p-4 rounded-lg bg-gold-50 dark:bg-stone-800 border border-gold-400/40 space-y-1">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-semibold text-stone-700 dark:text-stone-300">Cálculo de Honorário Automático (OAB):</span>
+            <span id="consulta-calculo-estimado" class="font-serif font-bold text-base text-brand-800 dark:text-gold-400">R$ 0,00</span>
+          </div>
+          <p id="consulta-calculo-detalhe" class="text-[11px] text-stone-500 dark:text-stone-400 italic">
+            Selecione o serviço e o advogado para visualizar o cálculo automático.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">Data *</label>
+            <input id="consulta-data" type="date" required class="w-full px-2 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800"/>
+          </div>
+          <div>
+            <label class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">Hora Início *</label>
+            <input id="consulta-hora-ini" type="time" required class="w-full px-2 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800"/>
+          </div>
+          <div>
+            <label class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">Hora Fim *</label>
+            <input id="consulta-hora-fim" type="time" required class="w-full px-2 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800"/>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">Modalidade</label>
+            <select id="consulta-modalidade" class="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100">
+              <option value="Presencial">Presencial</option>
+              <option value="Videoconferência">Videoconferência</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">Sala / Local</label>
+            <input id="consulta-sala" type="text" placeholder="Ex: Sala 01 ou Online" class="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100"/>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">Observações / Tema</label>
+          <textarea id="consulta-obs" rows="2" class="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100"></textarea>
+        </div>
+
+        <div class="pt-3 flex justify-end gap-2">
+          <button type="button" class="btn-close-modal px-4 py-2 text-stone-600 dark:text-stone-400 font-semibold" onclick="fecharModal('modal-consulta')">Cancelar</button>
+          <button type="submit" class="px-4 py-2 bg-brand-800 hover:bg-brand-900 text-white rounded-lg font-semibold shadow-sm">Confirmar Agendamento</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- TOAST DE NOTIFICAÇÕES -->
+  <div id="toast-notificacao" class="fixed bottom-6 right-6 z-50 hidden items-center gap-3 px-4 py-3 rounded-xl shadow-lg bg-stone-900 text-white text-xs font-ui transition-all">
+    <span id="toast-icon" class="material-symbols-outlined text-[20px] text-gold-400">check_circle</span>
+    <span id="toast-mensagem">Operação realizada com sucesso.</span>
+  </div>
+
+  <!-- Configuração do Supabase deve carregar antes da camada de dados -->
+  <script src="config.js"></script>
+  <!-- Carrega Camada de Dados e Lógica do App -->
+  <script src="db.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
+
