@@ -27,7 +27,9 @@ class AIConfig:
 
 def carregar_configuracao() -> AIConfig:
     api_key = os.getenv("OPENAI_API_KEY")
-    model = os.getenv("AI_MODEL", "nvidia/nemotron-3-ultra-550b-a55b:free")
+    # OpenAI and OpenRouter use different model identifiers.
+    default_model = "openai/gpt-4o-mini" if api_key and api_key.startswith("sk-or-") else "gpt-4o-mini"
+    model = os.getenv("AI_MODEL", default_model)
     max_output_tokens = int(os.getenv("AI_MAX_OUTPUT_TOKENS", "800"))
 
     if not api_key or api_key.strip().lower() in {"sua-chave-aqui", "your-api-key"}:
@@ -325,9 +327,18 @@ class AIService:
         )
 
         if base_url:
-            self.client = OpenAI(api_key=self.config.api_key, base_url=base_url)
+            self.client = OpenAI(
+                api_key=self.config.api_key,
+                base_url=base_url,
+                timeout=float(os.getenv("AI_TIMEOUT_SECONDS", "60")),
+                max_retries=2,
+            )
         else:
-            self.client = OpenAI(api_key=self.config.api_key)
+            self.client = OpenAI(
+                api_key=self.config.api_key,
+                timeout=float(os.getenv("AI_TIMEOUT_SECONDS", "60")),
+                max_retries=2,
+            )
 
     def perguntar(self, mensagem: str) -> str:
         if not mensagem or not mensagem.strip():
@@ -352,7 +363,9 @@ class AIService:
                 if content:
                     output += str(content)
 
-            return output or ""
+            if not output.strip():
+                raise RuntimeError("O provedor de IA retornou uma resposta vazia. Verifique o modelo configurado em AI_MODEL.")
+            return output.strip()
 
         except Exception as error:
             raise RuntimeError(
