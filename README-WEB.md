@@ -53,3 +53,5 @@ O schema atual usa uma política aberta para `anon`, adequada para um projeto/TC
 ## 6. Limitação atual da IA
 
 A IA depende de `OPENAI_API_KEY`/configuração do provedor definida no servidor. O navegador não recebe essa chave.
+
+Se o provedor responder com erro de crédito insuficiente, quota esgotada ou chave inválida, o sistema exibirá uma mensagem clara em vez de falha genérica. Nesse caso, é necessário recarregar créditos da conta do provedor, validar a chave ou trocar para outro modelo/fornecedor.

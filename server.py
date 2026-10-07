@@ -33,27 +33,50 @@ class WebHandler(BaseHTTPRequestHandler):
             self._json(404, {"error": "Endpoint não encontrado."})
             return
 
-        length = int(self.headers.get("Content-Length", "0"))
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            self._json(400, {"error": "Tamanho da requisição inválido."})
+            return
+        if length <= 0 or length > 65536:
+            self._json(413 if length > 65536 else 400, {"error": "A requisição deve ter até 64 KB."})
+            return
         try:
             payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
         except json.JSONDecodeError:
             self._json(400, {"error": "JSON inválido."})
             return
 
-        message = str(payload.get("message") or payload.get("prompt") or "").strip()
+        if not isinstance(payload, dict):
+            self._json(400, {"error": "Formato da requisição inválido."})
+            return
+
+        raw_message = payload.get("message") or payload.get("prompt") or ""
+        if not isinstance(raw_message, str):
+            self._json(400, {"error": "A mensagem precisa ser texto."})
+            return
+        message = raw_message.strip()
         if not message:
             self._json(400, {"error": "Mensagem vazia."})
             return
+        if len(message) > 4000:
+            self._json(413, {"error": "A mensagem deve ter até 4.000 caracteres."})
+            return
+
+        history = payload.get("history", [])
+        if not isinstance(history, list):
+            history = []
 
         if AI_SERVICE is None:
             self._json(503, {"error": AI_ERROR or "IA indisponível. Configure OPENAI_API_KEY."})
             return
 
         try:
-            answer = AI_SERVICE.perguntar(message)
+            answer = AI_SERVICE.perguntar(message, history)
             self._json(200, {"answer": answer})
         except Exception as exc:
-            self._json(500, {"error": str(exc)})
+            status = 429 if any(token in str(exc).lower() for token in ["créditos", "credit", "quota", "insufficient_quota", "no credits remaining"]) else 500
+            self._json(status, {"error": str(exc)})
 
     def do_GET(self):
         path = urlparse(self.path).path

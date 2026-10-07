@@ -931,6 +931,7 @@ function renderRelatorios() {
 // ========================================================
 // LAW AI (Assistente Jurídico)
 // ========================================================
+const lawAIHistory = [];
 window.enviarMensagemLawAI = function() {
   const lawaiChatBox = document.getElementById('lawai-chat-box');
   const lawaiInput = document.getElementById('lawai-input-msg');
@@ -967,7 +968,7 @@ window.enviarMensagemLawAI = function() {
   fetch('/api/ai', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message: msg })
+    body: JSON.stringify({ message: msg, history: lawAIHistory.slice(-10) })
   })
     .then(async (response) => {
       const data = await response.json().catch(() => ({}));
@@ -978,6 +979,8 @@ window.enviarMensagemLawAI = function() {
     })
     .then((answer) => {
       loading.remove();
+      lawAIHistory.push({ role: 'user', content: msg }, { role: 'assistant', content: answer });
+      if (lawAIHistory.length > 10) lawAIHistory.splice(0, lawAIHistory.length - 10);
 
       const botMessage = document.createElement('div');
       botMessage.className = 'flex items-start gap-3';
