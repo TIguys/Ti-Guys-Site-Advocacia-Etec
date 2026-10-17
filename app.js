@@ -72,33 +72,6 @@ function gerarSaltSenha() {
   return crypto.getRandomValues(new Uint8Array(16)).reduce((hex, byte) => hex + byte.toString(16).padStart(2, '0'), '');
 }
 
-window.loginRapido = function(tipo) {
-  const roleSelect = document.getElementById('login-role');
-  let user = {
-    id: 'user-1',
-    name: 'Secretaria Central',
-    role: 'Operacional • ETEC Bragança',
-    badge: 'SEC',
-    email: 'secretaria@advocaciaetec.com.br'
-  };
-
-  if (tipo === 'advogado') {
-    if (roleSelect) roleSelect.value = 'advogado';
-    user = {
-      id: 'user-2',
-      name: 'Dr. Carlos Eduardo',
-      role: 'Sócio-Diretor • OAB/SP 123456',
-      badge: 'CE',
-      email: 'carlos.eduardo@advocaciaetec.com.br'
-    };
-  }
-  if (tipo === 'secretaria' && roleSelect) roleSelect.value = 'secretaria';
-
-  db.setSession(user);
-  iniciarSessaoUI(user);
-  window.showToast(`Bem-vindo(a), ${user.name}!`);
-};
-
 window.fazerLogout = function() {
   db.clearSession();
   const viewLogin = document.getElementById('view-login');
@@ -1034,11 +1007,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   aplicarTema(db.getTheme());
 
-  // Checa se usuário possui sessão ativa salva
-  const savedSession = db.getSession();
-  if (savedSession) {
-    iniciarSessaoUI(savedSession);
-  }
+  // Remove sessões antigas para exigir login explícito após carregar o sistema.
+  db.clearSession();
 
   // Formulário de Login
   document.getElementById('form-login')?.addEventListener('submit', async (e) => {
