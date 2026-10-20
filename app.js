@@ -72,6 +72,33 @@ function gerarSaltSenha() {
   return crypto.getRandomValues(new Uint8Array(16)).reduce((hex, byte) => hex + byte.toString(16).padStart(2, '0'), '');
 }
 
+window.loginRapido = function(tipo) {
+  const roleSelect = document.getElementById('login-role');
+  let user = {
+    id: 'user-1',
+    name: 'Secretaria Central',
+    role: 'Operacional • ETEC Bragança',
+    badge: 'SEC',
+    email: 'secretaria@advocaciaetec.com.br'
+  };
+
+  if (tipo === 'advogado') {
+    if (roleSelect) roleSelect.value = 'advogado';
+    user = {
+      id: 'user-2',
+      name: 'Dr. Carlos Eduardo',
+      role: 'Sócio-Diretor • OAB/SP 123456',
+      badge: 'CE',
+      email: 'carlos.eduardo@advocaciaetec.com.br'
+    };
+  }
+  if (tipo === 'secretaria' && roleSelect) roleSelect.value = 'secretaria';
+
+  db.setSession(user);
+  iniciarSessaoUI(user);
+  window.showToast(`Bem-vindo(a), ${user.name}!`);
+};
+
 window.fazerLogout = function() {
   db.clearSession();
   const viewLogin = document.getElementById('view-login');
@@ -905,6 +932,9 @@ function renderRelatorios() {
 // LAW AI (Assistente Jurídico)
 // ========================================================
 const lawAIHistory = [];
+const lawAIBaseUrl = String(window.AI_API_BASE_URL || '').replace(/\/+$/, '');
+const lawAIEndpoint = (path) => `${lawAIBaseUrl}${path}`;
+
 window.enviarMensagemLawAI = function() {
   const lawaiChatBox = document.getElementById('lawai-chat-box');
   const lawaiInput = document.getElementById('lawai-input-msg');
@@ -938,7 +968,7 @@ window.enviarMensagemLawAI = function() {
   lawaiChatBox.appendChild(loading);
   lawaiChatBox.scrollTop = lawaiChatBox.scrollHeight;
 
-  fetch('/api/ai', {
+  fetch(lawAIEndpoint('/api/ai'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message: msg, history: lawAIHistory.slice(-10) })
@@ -969,7 +999,7 @@ window.enviarMensagemLawAI = function() {
       loading.remove();
 
       const errorText = error instanceof TypeError
-        ? 'Não foi possível conectar à IA. Confira se o serviço web da IA está configurado e se OPENAI_API_KEY está definida no servidor.'
+        ? 'Não foi possível conectar à Law AI. Verifique sua conexão e tente novamente.'
         : (error.message || 'Erro ao consultar a IA.');
 
       const errorMessage = document.createElement('div');
@@ -994,6 +1024,25 @@ window.enviarMensagemLawAI = function() {
 document.addEventListener('DOMContentLoaded', () => {
   const htmlEl = document.documentElement;
 
+  const lawAIStatus = document.getElementById('lawai-status');
+  if (lawAIStatus) {
+    fetch(lawAIEndpoint('/api/health'))
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Serviço indisponível.');
+        return response.json();
+      })
+      .then((health) => {
+        lawAIStatus.textContent = health.aiMessage || (
+          health.ai
+            ? 'Configuração da Law AI carregada no servidor.'
+            : 'Law AI temporariamente indisponível; contate o administrador do sistema.'
+        );
+      })
+      .catch(() => {
+        lawAIStatus.textContent = 'Não foi possível consultar o serviço da IA.';
+      });
+  }
+
   function aplicarTema(theme) {
     if (theme === 'dark') {
       htmlEl.classList.remove('light');
@@ -1007,8 +1056,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   aplicarTema(db.getTheme());
 
-  // Remove sessões antigas para exigir login explícito após carregar o sistema.
-  db.clearSession();
+  // Checa se usuário possui sessão ativa salva
+  const savedSession = db.getSession();
+  if (savedSession) {
+    iniciarSessaoUI(savedSession);
+  }
 
   // Formulário de Login
   document.getElementById('form-login')?.addEventListener('submit', async (e) => {

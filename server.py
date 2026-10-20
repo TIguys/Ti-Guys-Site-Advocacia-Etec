@@ -68,7 +68,15 @@ class WebHandler(BaseHTTPRequestHandler):
             history = []
 
         if AI_SERVICE is None:
-            self._json(503, {"error": AI_ERROR or "IA indisponível. Configure OPENAI_API_KEY."})
+            self._json(
+                503,
+                {
+                    "error": (
+                        "A Law AI está temporariamente indisponível. "
+                        "Entre em contato com o administrador do sistema."
+                    )
+                },
+            )
             return
 
         try:
@@ -76,12 +84,34 @@ class WebHandler(BaseHTTPRequestHandler):
             self._json(200, {"answer": answer})
         except Exception as exc:
             status = 429 if any(token in str(exc).lower() for token in ["créditos", "credit", "quota", "insufficient_quota", "no credits remaining"]) else 500
-            self._json(status, {"error": str(exc)})
+            print(f"[Law AI] Falha ao consultar o provedor: {exc}")
+            self._json(
+                status,
+                {
+                    "error": (
+                        "A Law AI está temporariamente indisponível. "
+                        "Tente novamente ou contate o administrador do sistema."
+                    )
+                },
+            )
 
     def do_GET(self):
         path = urlparse(self.path).path
         if path == "/api/health":
-            self._json(200, {"ok": True, "ai": AI_SERVICE is not None})
+            ai_available = AI_SERVICE is not None and AI_SERVICE.esta_disponivel()
+            self._json(200, {
+                "ok": True,
+                "ai": ai_available,
+                "aiMessage": (
+                    (
+                        f"Law AI local pronta ({AI_SERVICE.config.model})."
+                        if AI_SERVICE.config.provider == "ollama"
+                        else "Law AI pronta."
+                    )
+                    if ai_available
+                    else "Modelo de IA indisponível; verifique o serviço e a configuração do servidor."
+                ),
+            })
             return
         if path == "/api/config":
             self._json(200, {
@@ -134,6 +164,8 @@ class WebHandler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8080"))
+    if AI_SERVICE is None:
+        print(f"[Law AI] Serviço indisponível: {AI_ERROR}")
     server = ThreadingHTTPServer((host, port), WebHandler)
     print(f"Advocacia ETEC online em http://{host}:{port}")
     server.serve_forever()

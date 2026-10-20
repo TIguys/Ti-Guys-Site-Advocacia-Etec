@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+A <!DOCTYPE html>
 <html class="light" lang="pt-BR">
 <head>
   <meta charset="utf-8"/>
@@ -49,12 +49,12 @@
         <div><label for="login-role" class="block font-semibold mb-1">Entrar como</label><select id="login-role" class="w-full px-3.5 py-2.5 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard"><option value="cliente">Cliente</option><option value="advogado">Advogado</option><option value="secretaria">Secretaria</option></select></div>
         <div>
           <label class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">E-mail Corporativo</label>
-          <input id="login-email" type="email" required autocomplete="username" class="w-full px-3.5 py-2.5 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800 text-xs"/>
+          <input id="login-email" type="email" required value="secretaria@advocaciaetec.com.br" class="w-full px-3.5 py-2.5 rounded-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800 text-xs"/>
         </div>
 
         <div>
           <label class="block font-semibold mb-1 text-stone-800 dark:text-stone-200">Senha de Acesso</label>
-          <div class="flex"><input id="login-senha" type="password" required autocomplete="current-password" class="min-w-0 flex-1 px-3.5 py-2.5 rounded-l-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800 text-xs"/><button type="button" onclick="alternarVisibilidadeSenha('login-senha', this)" class="px-3 border border-l-0 border-stone-300 dark:border-stone-700 rounded-r-lg" aria-label="Mostrar senha"><span class="material-symbols-outlined">visibility</span></button></div>
+          <div class="flex"><input id="login-senha" type="password" required value="123456" class="min-w-0 flex-1 px-3.5 py-2.5 rounded-l-lg border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-darkcard text-stone-900 dark:text-stone-100 focus:outline-none focus:border-brand-800 text-xs"/><button type="button" onclick="alternarVisibilidadeSenha('login-senha', this)" class="px-3 border border-l-0 border-stone-300 dark:border-stone-700 rounded-r-lg" aria-label="Mostrar senha"><span class="material-symbols-outlined">visibility</span></button></div>
         </div>
 
         <div class="flex items-center justify-between pt-1">
@@ -615,6 +615,7 @@
             <span class="text-xs uppercase tracking-widest text-stone-500 dark:text-stone-400 font-ui font-medium">Assistente Jurídico Inteligente</span>
           </div>
           <h1 class="text-3xl font-serif text-stone-900 dark:text-stone-100 tracking-tight mt-1">Consultoria Jurídica IA</h1>
+          <p id="lawai-status" role="status" aria-live="polite" class="text-xs text-stone-500 dark:text-stone-400 mt-2">Verificando disponibilidade da IA...</p>
         </div>
       </div>
 
@@ -626,7 +627,7 @@
               AI
             </div>
             <div class="bg-stone-100 dark:bg-darkcard p-3 rounded-lg text-stone-800 dark:text-stone-200 max-w-[80%] leading-relaxed">
-              Olá, doutor(a)! Sou a <strong>Law AI</strong>, sua assistente jurídica. Posso ajudar na identificação de cláusulas contratuais, artigos do Código Penal/Civil e estimativas de penas. Em que posso ser útil hoje?
+              Olá! Sou a <strong>Law AI</strong>, assistente de apoio jurídico. Posso ajudar a organizar informações, analisar textos que você enviar e preparar minutas para revisão profissional. Não consulto a internet ou tribunais em tempo real; confirme referências e prazos em fontes oficiais. Como posso ajudar?
             </div>
           </div>
         </div>
@@ -866,4 +867,3 @@
   <script src="app.js"></script>
 </body>
 </html>
-
