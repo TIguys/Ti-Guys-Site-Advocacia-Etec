@@ -9,8 +9,8 @@ window.SUPABASE_URL = "https://xfdfnqknajmwzspfqqcw.supabase.co";
 window.SUPABASE_ANON_KEY = "sb_publishable_q56H3PCkfwlHyDkOvhs9SA_TWQERnLY";
 
 /**
- * URL base do backend da IA, necessária quando o frontend está no GitHub Pages.
- * Defina a URL pública do serviço Render, sem a barra final. Vazio usa a mesma
- * origem, adequado quando o backend também serve o frontend.
+ * URL base do backend da IA. Obrigatória para GitHub Pages, que só hospeda os
+ * arquivos estáticos. Defina a URL pública do backend, sem a barra final.
+ * Vazio só funciona quando o backend e o frontend usam a mesma origem.
  */
 window.AI_API_BASE_URL = "";

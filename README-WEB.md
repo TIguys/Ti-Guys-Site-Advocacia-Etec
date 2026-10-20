@@ -44,6 +44,12 @@ Para executar os testes automatizados do serviço de IA:
 python -m unittest discover -p "test_*.py"
 ```
 
+### Módulo de análise de penas
+
+Para perguntas sobre crimes, penas, dosimetria, progressão e execução penal, o backend consulta excertos correspondentes em até três textos oficiais do Planalto (Código Penal, legislação especial identificada e Constituição Federal), quando disponíveis. A consulta é feita pelo servidor e usa cache por seis horas. Nenhum texto do caso é enviado ao Planalto; ao modelo de IA aplica-se o fluxo normal da conversa. Com Ollama, esse processamento é local; com provedor remoto, o conteúdo da conversa é enviado ao provedor configurado.
+
+A busca é uma recuperação limitada por palavras-chave, não verifica sozinha vigência, lei temporalmente aplicável ou se o trecho localizado é completo; a resposta deve declarar a limitação e citar os links fornecidos. Não há pesquisa de jurisprudência, consulta a tribunais nem mecanismo que valide automaticamente a dosimetria. Cálculos e conclusões devem ser conferidos no texto integral oficial e revisados pelo advogado.
+
 ## 4. Publicar na web com Render
 
 1. Suba esta pasta para um repositório GitHub.
@@ -57,9 +63,9 @@ python -m unittest discover -p "test_*.py"
 O `server.py` serve o site e também o endpoint `/api/ai`.
 Nunca compartilhe a chave nem a coloque em `config.js`, no frontend ou no GitHub. O endpoint `/api/health` informa se a credencial foi carregada pelo servidor.
 
-### Frontend no GitHub Pages e backend no Render
+### Frontend no GitHub Pages e backend separado
 
-O GitHub Pages serve arquivos estáticos e não executa `server.py`. Se o frontend ficar no GitHub Pages, publique o backend Python como Web Service no Render, configure `OPENAI_API_KEY` em **Environment** e, após o serviço ficar disponível, defina `AI_API_BASE_URL` em `config.js` como a URL pública do Render, sem barra final (por exemplo, `https://seu-servico.onrender.com`). Publique novamente os arquivos do frontend no GitHub Pages. A URL do backend é pública; a chave da IA deve permanecer somente nas variáveis do Render.
+O GitHub Pages serve arquivos estáticos e não executa `server.py`. Portanto, o chat não responderá no site publicado enquanto não existir um backend público. Publique `server.py` como Web Service (por exemplo, no Render), configure o provedor no servidor ou instale o Ollama no próprio host do backend e confirme que `/api/health` responde. Em seguida, defina `AI_API_BASE_URL` em `config.js` para a URL pública desse backend, sem barra final, e publique novamente o frontend. Não use `localhost` nessa configuração: no navegador de cada visitante, `localhost` aponta para o computador do visitante. A URL do backend é pública; credenciais devem permanecer somente no ambiente privado do servidor.
 
 ## 5. Importante sobre segurança
 
@@ -73,4 +79,4 @@ A IA usa o Ollama local automaticamente quando o serviço está disponível. Em 
 
 Se o provedor responder com erro de crédito insuficiente, quota esgotada ou chave inválida, o sistema exibirá uma mensagem clara em vez de falha genérica. Nesse caso, é necessário recarregar créditos da conta do provedor, validar a chave ou trocar para outro modelo/fornecedor.
 
-A assistente usa as instruções jurídicas do backend para orientar respostas em português, análise cuidadosa de fatos, elaboração de rascunhos e proteção contra pedidos ilícitos. O chat não tem pesquisa na internet, integração com tribunais, RAG, leitura de anexos, histórico persistente, nem acesso autorizado ao cadastro de clientes/processos. Não use respostas como pesquisa jurídica verificada ou com dados reais sigilosos; confirme legislação, jurisprudência e prazos em fontes oficiais e revise minutas com o advogado responsável. O login atual do site não autentica nem autoriza o endpoint de IA no servidor.
+A assistente usa as instruções jurídicas do backend para orientar respostas em português, análise cuidadosa de fatos, elaboração de rascunhos e proteção contra pedidos ilícitos. Para perguntas sobre penas, há recuperação limitada de excertos da legislação oficial do Planalto, mas não pesquisa de jurisprudência, integração com tribunais, leitura de anexos, histórico persistente ou acesso autorizado ao cadastro de clientes/processos. Não use respostas como pesquisa jurídica completa ou com dados reais sigilosos; confirme legislação, jurisprudência e prazos em fontes oficiais e revise minutas com o advogado responsável. O login atual do site não autentica nem autoriza o endpoint de IA no servidor.

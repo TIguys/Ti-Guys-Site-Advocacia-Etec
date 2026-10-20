@@ -3,7 +3,13 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from ai_test import AIConfig, AIService, SYSTEM_INSTRUCTIONS, carregar_configuracao
+from ai_test import (
+    LEGAL_RESEARCH_UNAVAILABLE_RESPONSE,
+    AIConfig,
+    AIService,
+    SYSTEM_INSTRUCTIONS,
+    carregar_configuracao,
+)
 
 
 class AIServiceTests(unittest.TestCase):
@@ -116,6 +122,55 @@ class AIServiceTests(unittest.TestCase):
                 {"role": "user", "content": "Analise este caso."},
             ],
         )
+
+    def test_includes_official_research_for_penalty_questions(self):
+        self.client.chat.completions.create.return_value = SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(content="Análise condicionada à revisão.")
+                )
+            ]
+        )
+
+        with patch.object(
+            self.service.legal_research,
+            "pesquisar",
+            return_value=(
+                "FONTE OFICIAL: Código Penal\n"
+                "URL: https://www.planalto.gov.br/exemplo\n"
+                "Trechos localizados: Art. 155."
+            ),
+        ):
+            answer = self.service.perguntar(
+                "Qual a pena em tese no art. 155?"
+            )
+
+        messages = self.client.chat.completions.create.call_args.kwargs["messages"]
+        self.assertEqual(answer, "Análise condicionada à revisão.")
+        self.assertIn(
+            "MÓDULO ESPECIALIZADO — ANÁLISE DE PENAS",
+            messages[0]["content"],
+        )
+        self.assertIn("FONTE OFICIAL: Código Penal", messages[-1]["content"])
+        self.assertIn("https://www.planalto.gov.br/exemplo", messages[-1]["content"])
+        self.assertEqual(
+            messages[-1]["content"].split("\n\n", 1)[0],
+            "Qual a pena em tese no art. 155?",
+        )
+
+    def test_does_not_generate_penalty_analysis_without_official_excerpts(self):
+        with patch.object(
+            self.service.legal_research,
+            "pesquisar",
+            return_value=(
+                "PESQUISA AUTOMATIZADA DE LEGISLAÇÃO OFICIAL DO PLANALTO.\n"
+                "FONTE NÃO ACESSADA: Código Penal"
+            ),
+        ):
+            answer = self.service.perguntar("Qual a pena no Código Penal?")
+
+        self.assertEqual(answer, LEGAL_RESEARCH_UNAVAILABLE_RESPONSE)
+        self.client.chat.completions.create.assert_not_called()
 
     def test_rejects_empty_message(self):
         with self.assertRaisesRegex(ValueError, "não pode estar vazia"):

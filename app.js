@@ -934,6 +934,8 @@ function renderRelatorios() {
 const lawAIHistory = [];
 const lawAIBaseUrl = String(window.AI_API_BASE_URL || '').replace(/\/+$/, '');
 const lawAIEndpoint = (path) => `${lawAIBaseUrl}${path}`;
+const lawAIBackendMissing = !lawAIBaseUrl && window.location.hostname.endsWith('github.io');
+const lawAIBackendMissingMessage = 'A Law AI ainda não está conectada a este site publicado. O administrador precisa publicar o backend Python e configurar AI_API_BASE_URL com o endereço do serviço.';
 
 window.enviarMensagemLawAI = function() {
   const lawaiChatBox = document.getElementById('lawai-chat-box');
@@ -968,6 +970,24 @@ window.enviarMensagemLawAI = function() {
   lawaiChatBox.appendChild(loading);
   lawaiChatBox.scrollTop = lawaiChatBox.scrollHeight;
 
+  if (lawAIBackendMissing) {
+    loading.remove();
+    const errorMessage = document.createElement('div');
+    errorMessage.className = 'flex items-start gap-3';
+    errorMessage.innerHTML = `
+      <div class="w-8 h-8 rounded-full bg-red-600 text-white font-bold flex items-center justify-center shrink-0">!</div>
+      <div class="bg-red-50 text-red-700 p-3 rounded-lg max-w-[80%] leading-relaxed">
+        ${lawAIBackendMissingMessage}
+      </div>
+    `;
+    lawaiChatBox.appendChild(errorMessage);
+    lawaiInput.disabled = false;
+    document.getElementById('lawai-btn-send')?.removeAttribute('disabled');
+    lawaiInput.focus();
+    lawaiChatBox.scrollTop = lawaiChatBox.scrollHeight;
+    return;
+  }
+
   fetch(lawAIEndpoint('/api/ai'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -976,7 +996,12 @@ window.enviarMensagemLawAI = function() {
     .then(async (response) => {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data.error || 'Não foi possível responder neste momento.');
+        throw new Error(
+          data.error ||
+          (response.status === 404 || response.status === 405
+            ? 'O servidor da Law AI não foi encontrado. Confira a URL do backend configurada para este site.'
+            : 'Não foi possível responder neste momento.')
+        );
       }
       return data.answer || 'Não houve resposta da inteligência artificial.';
     })
@@ -1026,7 +1051,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const lawAIStatus = document.getElementById('lawai-status');
   if (lawAIStatus) {
-    fetch(lawAIEndpoint('/api/health'))
+    if (lawAIBackendMissing) {
+      lawAIStatus.textContent = lawAIBackendMissingMessage;
+    } else {
+      fetch(lawAIEndpoint('/api/health'))
       .then(async (response) => {
         if (!response.ok) throw new Error('Serviço indisponível.');
         return response.json();
@@ -1039,8 +1067,9 @@ document.addEventListener('DOMContentLoaded', () => {
         );
       })
       .catch(() => {
-        lawAIStatus.textContent = 'Não foi possível consultar o serviço da IA.';
+        lawAIStatus.textContent = 'Não foi possível consultar o serviço da IA. Confira se o backend está publicado e se AI_API_BASE_URL está correto.';
       });
+    }
   }
 
   function aplicarTema(theme) {
