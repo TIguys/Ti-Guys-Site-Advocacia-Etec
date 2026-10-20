@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.py[cod]
+Ai_tcc.env
+.env
+.env.*
+data/
+*.sqlite
+*.sqlite3
+*.db

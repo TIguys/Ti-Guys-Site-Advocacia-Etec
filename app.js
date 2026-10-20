@@ -934,8 +934,6 @@ function renderRelatorios() {
 const lawAIHistory = [];
 const lawAIBaseUrl = String(window.AI_API_BASE_URL || '').replace(/\/+$/, '');
 const lawAIEndpoint = (path) => `${lawAIBaseUrl}${path}`;
-const lawAIBackendMissing = !lawAIBaseUrl && window.location.hostname.endsWith('github.io');
-const lawAIBackendMissingMessage = 'A Law AI ainda não está conectada a este site publicado. O administrador precisa publicar o backend Python e configurar AI_API_BASE_URL com o endereço do serviço.';
 
 window.enviarMensagemLawAI = function() {
   const lawaiChatBox = document.getElementById('lawai-chat-box');
@@ -970,63 +968,83 @@ window.enviarMensagemLawAI = function() {
   lawaiChatBox.appendChild(loading);
   lawaiChatBox.scrollTop = lawaiChatBox.scrollHeight;
 
-  if (lawAIBackendMissing) {
-    loading.remove();
-    const errorMessage = document.createElement('div');
-    errorMessage.className = 'flex items-start gap-3';
-    errorMessage.innerHTML = `
-      <div class="w-8 h-8 rounded-full bg-red-600 text-white font-bold flex items-center justify-center shrink-0">!</div>
-      <div class="bg-red-50 text-red-700 p-3 rounded-lg max-w-[80%] leading-relaxed">
-        ${lawAIBackendMissingMessage}
-      </div>
-    `;
-    lawaiChatBox.appendChild(errorMessage);
-    lawaiInput.disabled = false;
-    document.getElementById('lawai-btn-send')?.removeAttribute('disabled');
-    lawaiInput.focus();
-    lawaiChatBox.scrollTop = lawaiChatBox.scrollHeight;
-    return;
-  }
-
-  fetch(lawAIEndpoint('/api/ai'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message: msg, history: lawAIHistory.slice(-10) })
-  })
-    .then(async (response) => {
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(
-          data.error ||
-          (response.status === 404 || response.status === 405
-            ? 'O servidor da Law AI não foi encontrado. Confira a URL do backend configurada para este site.'
-            : 'Não foi possível responder neste momento.')
-        );
+  Promise.resolve()
+    .then(async () => {
+      if (!lawAIBaseUrl) {
+        try {
+          const saved = await window.LawAILocal.findAnswer(msg);
+          if (!lawAIHistory.length && saved) return { answer: saved.answer, cached: true, savedAt: saved.savedAt };
+        } catch (error) {
+          console.warn('[Law AI] Banco local indisponível:', error);
+        }
       }
-      return data.answer || 'Não houve resposta da inteligência artificial.';
+
+      if (lawAIBaseUrl) {
+        try {
+          const response = await fetch(lawAIEndpoint('/api/ai'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: msg, history: lawAIHistory.slice(-10) })
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.error || 'O backend da IA não respondeu.');
+          if (data.answer) return { answer: data.answer, cached: false, backend: true };
+        } catch (error) {
+          if (!window.LawAILocal?.hasWebGPU()) throw error;
+          const status = document.getElementById('lawai-status');
+          if (status) status.textContent = 'Backend indisponível. Tentando responder no modelo local do navegador...';
+        }
+      }
+
+      const messages = [
+        ...lawAIHistory.slice(-10),
+        { role: 'user', content: msg }
+      ];
+      const answer = await window.LawAILocal.answer(messages, (progress) => {
+        const status = document.getElementById('lawai-status');
+        if (status) status.textContent = progress;
+        const loadingText = loading.querySelector('.bg-stone-100');
+        if (loadingText) loadingText.textContent = progress;
+      });
+      return { answer, cached: false };
     })
-    .then((answer) => {
+    .then(async (result) => {
       loading.remove();
+      const answer = String(result.answer || '').trim();
+      if (!lawAIBaseUrl && !result.cached && !lawAIHistory.length) {
+        try { await window.LawAILocal.saveAnswer(msg, answer); }
+        catch (error) { console.warn('[Law AI] Não foi possível salvar a resposta local:', error); }
+      }
       lawAIHistory.push({ role: 'user', content: msg }, { role: 'assistant', content: answer });
       if (lawAIHistory.length > 10) lawAIHistory.splice(0, lawAIHistory.length - 10);
 
+      const cacheNotice = result.cached
+        ? `Resposta recuperada do historico local de ${new Date(result.savedAt).toLocaleDateString('pt-BR')}. Confira se continua atual.`
+        : result.backend
+          ? 'Resposta gerada pelo backend. A base oficial é usada quando há trechos pertinentes; a pergunta não é salva no servidor.'
+          : 'Resposta gerada no navegador e salva somente neste dispositivo.';
+      const status = document.getElementById('lawai-status');
+      if (status && !lawAIBaseUrl) {
+        status.textContent = result.cached
+          ? 'Resposta recuperada do banco local deste navegador.'
+          : 'Modelo local ativo. Respostas independentes ficam salvas neste navegador.';
+      }
       const botMessage = document.createElement('div');
       botMessage.className = 'flex items-start gap-3';
       botMessage.innerHTML = `
         <div class="w-8 h-8 rounded-full bg-brand-800 text-gold-400 font-bold flex items-center justify-center shrink-0">AI</div>
         <div class="bg-stone-100 dark:bg-darkcard p-3 rounded-lg text-stone-800 dark:text-stone-200 max-w-[80%] leading-relaxed whitespace-pre-wrap">
-          ${String(answer || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}
+          ${String(answer).replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}
+          <div class="mt-2 pt-2 border-t border-stone-300 dark:border-stone-700 text-[10px] opacity-70">${cacheNotice}</div>
         </div>
       `;
       lawaiChatBox.appendChild(botMessage);
     })
     .catch((error) => {
       loading.remove();
-
       const errorText = error instanceof TypeError
-        ? 'Não foi possível conectar à Law AI. Verifique sua conexão e tente novamente.'
+        ? 'Não foi possível carregar o modelo local. Conecte-se à internet na primeira utilização e tente novamente.'
         : (error.message || 'Erro ao consultar a IA.');
-
       const errorMessage = document.createElement('div');
       errorMessage.className = 'flex items-start gap-3';
       errorMessage.innerHTML = `
@@ -1051,26 +1069,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const lawAIStatus = document.getElementById('lawai-status');
   if (lawAIStatus) {
-    if (lawAIBackendMissing) {
-      lawAIStatus.textContent = lawAIBackendMissingMessage;
-    } else {
+    if (lawAIBaseUrl) {
       fetch(lawAIEndpoint('/api/health'))
-      .then(async (response) => {
-        if (!response.ok) throw new Error('Serviço indisponível.');
-        return response.json();
-      })
-      .then((health) => {
-        lawAIStatus.textContent = health.aiMessage || (
-          health.ai
-            ? 'Configuração da Law AI carregada no servidor.'
-            : 'Law AI temporariamente indisponível; contate o administrador do sistema.'
-        );
-      })
-      .catch(() => {
-        lawAIStatus.textContent = 'Não foi possível consultar o serviço da IA. Confira se o backend está publicado e se AI_API_BASE_URL está correto.';
-      });
+        .then(async (response) => {
+          if (!response.ok) throw new Error('Servi\u00e7o indispon\u00edvel.');
+          return response.json();
+        })
+        .then((health) => {
+          const knowledge = health.legalKnowledge || {};
+          const sourceCount = Number(knowledge.source_count || 0);
+          const chunkCount = Number(knowledge.chunk_count || 0);
+          const knowledgeMessage = sourceCount
+            ? ` Base jur\u00eddica: ${sourceCount} normas e ${chunkCount} trechos.`
+            : ' A base jur\u00eddica ainda precisa ser sincronizada.';
+          lawAIStatus.textContent = `${health.aiMessage || 'Backend conectado.'}${knowledgeMessage}`;
+        })
+        .catch(() => {
+          lawAIStatus.textContent = 'Backend n\u00e3o conectado. O chat tentar\u00e1 usar o modelo local deste navegador.';
+        });
+    } else if (window.LawAILocal?.hasWebGPU()) {
+      lawAIStatus.textContent = 'IA local pronta para carregar. Na primeira utiliza\u00e7\u00e3o, conecte-se \u00e0 internet para baixar o modelo. Depois, ele fica no cache do navegador. As respostas ficam neste dispositivo.';
+    } else {
+      lawAIStatus.textContent = 'Este navegador n\u00e3o oferece WebGPU. Use Chrome ou Edge atualizados em dispositivo compat\u00edvel. Respostas j\u00e1 salvas ainda podem ser recuperadas.';
     }
   }
+
+  document.getElementById('lawai-clear-cache')?.addEventListener('click', async () => {
+    const button = document.getElementById('lawai-clear-cache');
+    try {
+      await window.LawAILocal.clearAnswers();
+      if (lawAIStatus) lawAIStatus.textContent = 'Respostas salvas apagadas deste navegador. O modelo baixado foi mantido.';
+    } catch (error) {
+      if (lawAIStatus) lawAIStatus.textContent = error.message || 'N\u00e3o foi poss\u00edvel apagar as respostas salvas.';
+    }
+    button?.blur();
+  });
 
   function aplicarTema(theme) {
     if (theme === 'dark') {

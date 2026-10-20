@@ -1,4 +1,6 @@
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from ai_legal_research import OfficialLawResearch, SOURCES
@@ -7,9 +9,12 @@ from ai_test import LEGAL_RESEARCH_UNAVAILABLE_RESPONSE, SYSTEM_INSTRUCTIONS
 
 class OfficialLawResearchTests(unittest.TestCase):
     def setUp(self):
-        self.research = OfficialLawResearch()
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.db_path = Path(self.temp_dir.name) / "legal.sqlite3"
+        self.research = OfficialLawResearch(db_path=self.db_path)
 
-    def test_only_fetches_for_penalty_or_penal_execution_requests(self):
+    def test_recognizes_general_legal_topics_without_researching_nonlegal_requests(self):
         self.assertTrue(
             self.research.is_penalty_request("Qual seria a pena em tese?")
         )
@@ -18,6 +23,15 @@ class OfficialLawResearchTests(unittest.TestCase):
         )
         self.assertFalse(
             self.research.is_penalty_request("Revise este e-mail para o cliente.")
+        )
+        self.assertTrue(
+            self.research.is_legal_request("Quais são os direitos fundamentais?")
+        )
+        self.assertTrue(
+            self.research.is_legal_request("Quais são os direitos trabalhistas?")
+        )
+        self.assertFalse(
+            self.research.is_legal_request("Revise este e-mail para o cliente.")
         )
         self.assertEqual(
             self.research.pesquisar("Revise este e-mail para o cliente."),
@@ -32,6 +46,11 @@ class OfficialLawResearchTests(unittest.TestCase):
         self.assertEqual(selected[0], SOURCES[0])
         self.assertEqual(selected[1], SOURCES[4])
         self.assertEqual(selected[-1], SOURCES[-1])
+
+    def test_accented_user_query_matches_legacy_special_law_triggers(self):
+        query = "Qual a pena em tese para tr\u00e1fico de drogas?"
+        selected = self.research.select_sources(query)
+        self.assertIn(SOURCES[4], selected)
 
     def test_extracts_requested_article_and_relevant_text(self):
         text = (
@@ -65,36 +84,63 @@ class OfficialLawResearchTests(unittest.TestCase):
     def test_includes_official_url_and_marks_unavailable_source(self):
         with patch.object(
             self.research,
-            "_fetch_text",
+            "_download_text",
             side_effect=OSError("offline"),
         ):
             result = self.research.pesquisar("Qual a pena em tese para roubo?")
 
-        self.assertIn("PESQUISA AUTOMATIZADA", result)
+        self.assertIn("PESQUISA OFICIAL INDISPONÍVEL", result)
         self.assertIn(SOURCES[0].url, result)
         self.assertIn("FONTE NÃO ACESSADA", result)
-        self.assertIn("não há consulta de jurisprudência", result.lower())
 
-    def test_marks_official_source_and_matched_article(self):
+    def test_persists_official_source_and_retrieves_requested_article(self):
+        text = (
+            "Código Penal compilado. "
+            + ("Texto introdutório da norma. " * 30)
+            + "Art. 155. Subtrair coisa alheia móvel. "
+            + ("A pena é definida conforme a lei aplicável. " * 20)
+            + "Art. 156. Outro tipo penal."
+        )
         with patch.object(
             self.research,
-            "_fetch_text",
-            return_value="Art. 155. Subtrair coisa alheia móvel. Pena: reclusão.",
+            "_download_text",
+            return_value=text,
         ):
             result = self.research.pesquisar(
                 "Qual a pena prevista no art. 155 do Código Penal?"
             )
 
+        restarted = OfficialLawResearch(db_path=self.db_path)
+        self.assertGreaterEqual(restarted.status()["source_count"], 1)
+        self.assertGreater(restarted.status()["chunk_count"], 0)
         self.assertIn("FONTE OFICIAL: Código Penal", result)
         self.assertIn("Art. 155.", result)
         self.assertIn(SOURCES[0].url, result)
+        self.assertIn("Texto obtido em:", result)
+        self.assertIn("confirme o texto integral", result)
 
-    def test_failed_lookup_does_not_claim_to_verify_penalty_limits(self):
-        self.assertIn("não vou estimar esses dados", LEGAL_RESEARCH_UNAVAILABLE_RESPONSE)
-        self.assertIn(
-            "não tente completar de memória",
-            SYSTEM_INSTRUCTIONS,
+    def test_legal_question_searches_constitution_and_returns_relevant_source(self):
+        self.research._store_source(
+            SOURCES[-1],
+            "Constituição Federal. "
+            + ("Texto de apresentação da Constituição. " * 20)
+            + "Art. 5º Todos são iguais perante a lei, sem distinção de qualquer natureza. "
+            + ("São assegurados direitos e garantias fundamentais. " * 20),
         )
+
+        result = self.research.pesquisar(
+            "Quais são os direitos fundamentais previstos no art. 5 da Constituição?"
+        )
+
+        self.assertIn("FONTE OFICIAL: Constituição Federal", result)
+        self.assertIn("Art. 5", result)
+        self.assertIn(SOURCES[-1].url, result)
+
+    def test_failed_lookup_still_allows_general_answers_without_unverified_limits(self):
+        self.assertIn("Responda \u00e0 parte conceitual", LEGAL_RESEARCH_UNAVAILABLE_RESPONSE)
+        self.assertIn("n\u00e3o afirme como confirmado", LEGAL_RESEARCH_UNAVAILABLE_RESPONSE)
+        self.assertIn("n\u00e3o encerre a resposta apenas", LEGAL_RESEARCH_UNAVAILABLE_RESPONSE)
+        self.assertIn("n\u00e3o apresente artigos, limites", SYSTEM_INSTRUCTIONS)
 
 
 if __name__ == "__main__":

@@ -1,14 +1,33 @@
 import json
 import os
+import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit
 
 from ai_test import AIService
 
 ROOT = Path(__file__).resolve().parent
 AI_SERVICE = None
 AI_ERROR = None
+DEFAULT_ALLOWED_ORIGINS = {
+    "https://tiguys.github.io",
+    "http://127.0.0.1:8080",
+    "http://localhost:8080",
+}
+ALLOWED_ORIGINS = {
+    origin.strip().rstrip("/")
+    for origin in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
+    if origin.strip()
+} or DEFAULT_ALLOWED_ORIGINS
+RATE_LIMIT = max(1, int(os.getenv("AI_RATE_LIMIT", "10")))
+RATE_WINDOW_SECONDS = max(1, int(os.getenv("AI_RATE_WINDOW_SECONDS", "60")))
+_RATE_LOCK = threading.Lock()
+_RATE_REQUESTS = {}
+_AI_SEMAPHORE = threading.BoundedSemaphore(
+    max(1, int(os.getenv("AI_MAX_CONCURRENT_REQUESTS", "2")))
+)
 
 try:
     AI_SERVICE = AIService()
@@ -20,17 +39,71 @@ class WebHandler(BaseHTTPRequestHandler):
     def _headers(self, content_type="text/plain; charset=utf-8", status=200):
         self.send_response(status)
         self.send_header("Content-Type", content_type)
-        self.send_header("Access-Control-Allow-Origin", "*")
+        origin = self._allowed_origin()
+        if origin:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
     def do_OPTIONS(self):
+        if self.headers.get("Origin") and not self._allowed_origin():
+            self._headers(status=403)
+            return
         self._headers(status=204)
 
+    def _allowed_origin(self):
+        origin = self.headers.get("Origin", "").rstrip("/")
+        if not origin:
+            return ""
+        origin_host = urlsplit(origin).netloc.lower()
+        request_host = self.headers.get("Host", "").lower()
+        if origin in ALLOWED_ORIGINS or (
+            origin_host and origin_host == request_host
+        ):
+            return origin
+        return ""
+
+    def _origin_is_allowed(self):
+        return not self.headers.get("Origin") or bool(self._allowed_origin())
+
+    @staticmethod
+    def _rate_limit_allows(client_ip):
+        now = time.monotonic()
+        cutoff = now - RATE_WINDOW_SECONDS
+        with _RATE_LOCK:
+            for address in list(_RATE_REQUESTS):
+                recent = [
+                    timestamp for timestamp in _RATE_REQUESTS[address]
+                    if timestamp > cutoff
+                ]
+                if recent:
+                    _RATE_REQUESTS[address] = recent
+                else:
+                    del _RATE_REQUESTS[address]
+            if client_ip not in _RATE_REQUESTS and len(_RATE_REQUESTS) >= 5000:
+                return False
+            requests = _RATE_REQUESTS.setdefault(client_ip, [])
+            if len(requests) >= RATE_LIMIT:
+                return False
+            requests.append(now)
+            return True
+
     def do_POST(self):
+        if not self._origin_is_allowed():
+            self._json(403, {"error": "Origem não autorizada."})
+            return
         if self.path != "/api/ai":
             self._json(404, {"error": "Endpoint não encontrado."})
+            return
+
+        client_ip = self.client_address[0]
+        if not self._rate_limit_allows(client_ip):
+            self._json(
+                429,
+                {"error": "Muitas perguntas em pouco tempo. Aguarde e tente novamente."},
+            )
             return
 
         try:
@@ -43,7 +116,7 @@ class WebHandler(BaseHTTPRequestHandler):
             return
         try:
             payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
-        except json.JSONDecodeError:
+        except (UnicodeDecodeError, json.JSONDecodeError):
             self._json(400, {"error": "JSON inválido."})
             return
 
@@ -80,11 +153,20 @@ class WebHandler(BaseHTTPRequestHandler):
             return
 
         try:
-            answer = AI_SERVICE.perguntar(message, history)
+            if not _AI_SEMAPHORE.acquire(timeout=5):
+                self._json(
+                    503,
+                    {"error": "A Law AI está ocupada. Tente novamente em instantes."},
+                )
+                return
+            try:
+                answer = AI_SERVICE.perguntar(message, history)
+            finally:
+                _AI_SEMAPHORE.release()
             self._json(200, {"answer": answer})
         except Exception as exc:
             status = 429 if any(token in str(exc).lower() for token in ["créditos", "credit", "quota", "insufficient_quota", "no credits remaining"]) else 500
-            print(f"[Law AI] Falha ao consultar o provedor: {exc}")
+            print(f"[Law AI] Falha ao consultar o provedor ({type(exc).__name__}).")
             self._json(
                 status,
                 {
@@ -96,12 +178,19 @@ class WebHandler(BaseHTTPRequestHandler):
             )
 
     def do_GET(self):
+        if not self._origin_is_allowed():
+            self._json(403, {"error": "Origem não autorizada."})
+            return
         path = urlparse(self.path).path
         if path == "/api/health":
             ai_available = AI_SERVICE is not None and AI_SERVICE.esta_disponivel()
+            knowledge_status = (
+                AI_SERVICE.legal_research.status() if AI_SERVICE is not None else {}
+            )
             self._json(200, {
                 "ok": True,
                 "ai": ai_available,
+                "legalKnowledge": knowledge_status,
                 "aiMessage": (
                     (
                         f"Law AI local pronta ({AI_SERVICE.config.model})."
@@ -127,7 +216,7 @@ class WebHandler(BaseHTTPRequestHandler):
             path = "/index.html"
 
         file_path = (ROOT / path.lstrip("/")).resolve()
-        if not str(file_path).startswith(str(ROOT.resolve())) or not file_path.is_file():
+        if ROOT.resolve() not in file_path.parents or not file_path.is_file():
             self._headers("text/plain; charset=utf-8", 404)
             self.wfile.write(b"Arquivo nao encontrado.")
             return
@@ -150,7 +239,10 @@ class WebHandler(BaseHTTPRequestHandler):
         body = json.dumps(data, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        origin = self._allowed_origin()
+        if origin:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.send_header("Content-Length", str(len(body)))

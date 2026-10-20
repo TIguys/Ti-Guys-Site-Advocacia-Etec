@@ -23,60 +23,54 @@ npm run build:css
 
 ## 3. Rodar localmente
 
-Quem usa o site não precisa informar nem enviar chave de IA. Quando o Ollama está instalado e iniciado na mesma máquina, o backend usa automaticamente o modelo local `llama3.2:3b`; nenhuma chave externa é necessária e as conversas ficam nessa máquina. Em outros servidores, o administrador pode configurar uma credencial de provedor apenas no servidor; ela nunca é enviada ao navegador.
-
-Para instalar o modelo local, instale o Ollama, baixe `llama3.2:3b` (`ollama pull llama3.2:3b`) e mantenha o serviço Ollama iniciado antes de abrir o site. Defina `OLLAMA_MODELS` para armazenar os modelos em uma unidade com espaço livre. O status da Law AI confirma a disponibilidade do modelo local antes de anunciar que está pronta.
-
-Quando o Ollama local não estiver disponível, OpenAI continua disponível com `OPENAI_API_KEY`; `AI_MODEL` e `AI_BASE_URL` permitem selecionar outro modelo ou endpoint compatível. NVIDIA NIM também pode ser escolhida com `NVIDIA_API_KEY`. Em hospedagens como Render, configure `AI_PROVIDER=openai` para selecionar explicitamente o provedor remoto.
+O chat da Law AI usa o endpoint Python quando o site é servido pelo próprio `server.py`. Para executar:
 
 ```bash
 pip install -r requirements.txt
+ollama pull qwen2.5:7b
 python server.py
 ```
 
-Depois abra:
+Abra http://localhost:8080. Não é necessária uma chave de API para o Ollama local. O banco SQLite é criado em `data/legal_knowledge.sqlite3`.
 
-http://localhost:8080
-
-Para executar os testes automatizados do serviço de IA:
+Para testar e consultar a base:
 
 ```bash
 python -m unittest discover -p "test_*.py"
+python ai_legal_research.py --sync
+python ai_legal_research.py --status
 ```
 
-### Módulo de análise de penas
+`--sync` baixa os textos do catálogo de fontes oficiais do Planalto e informa falhas por fonte; `--status` mostra quantas normas e trechos estão persistidos. A aplicação também tenta obter a norma relevante quando ela ainda não está na base. Se a conexão oficial falhar, não afirma que a norma foi sincronizada.
 
-Para perguntas sobre crimes, penas, dosimetria, progressão e execução penal, o backend consulta excertos correspondentes em até três textos oficiais do Planalto (Código Penal, legislação especial identificada e Constituição Federal), quando disponíveis. A consulta é feita pelo servidor e usa cache por seis horas. Nenhum texto do caso é enviado ao Planalto; ao modelo de IA aplica-se o fluxo normal da conversa. Com Ollama, esse processamento é local; com provedor remoto, o conteúdo da conversa é enviado ao provedor configurado.
+## 4. Hospedar o modelo e o backend
 
-A busca é uma recuperação limitada por palavras-chave, não verifica sozinha vigência, lei temporalmente aplicável ou se o trecho localizado é completo; a resposta deve declarar a limitação e citar os links fornecidos. Não há pesquisa de jurisprudência, consulta a tribunais nem mecanismo que valide automaticamente a dosimetria. Cálculos e conclusões devem ser conferidos no texto integral oficial e revisados pelo advogado.
+O GitHub Pages hospeda somente os arquivos estáticos. Para que todos usem o mesmo modelo e a mesma base jurídica, hospede `server.py`, Ollama e o volume SQLite em um servidor Linux com GPU NVIDIA. A configuração Docker Compose deste projeto mantém a porta do Ollama apenas na rede interna e publica a API da Law AI na porta 8080.
 
-## 4. Publicar na web com Render
+Pré-requisitos do servidor: Docker Engine, Docker Compose v2 e NVIDIA Container Toolkit. Em um servidor/Pod com GPU:
 
-1. Suba esta pasta para um repositório GitHub.
-2. No Render, crie um Web Service apontando para o repositório.
-3. Build command: `pip install -r requirements.txt`
-4. Start command: `python server.py`
-5. Em **Environment** no Render, configure `AI_PROVIDER=openai` e `OPENAI_API_KEY` no servidor. Essa configuração é feita uma vez pelo administrador: usuários do site não precisam enviar chave alguma, e o segredo não é exposto no navegador. O modelo padrão remoto é `gpt-4o-mini`; altere `AI_MODEL` se desejar outro. Para usar NVIDIA NIM, selecione `AI_PROVIDER=nvidia` e configure `NVIDIA_API_KEY`.
-6. Configure `SUPABASE_ANON_KEY` com a anon public key para ativar a sincronização.
-7. Faça o deploy.
+```bash
+docker compose up -d --build
+docker compose exec lawai python ai_legal_research.py --sync
+docker compose exec lawai python ai_legal_research.py --status
+```
 
-O `server.py` serve o site e também o endpoint `/api/ai`.
-Nunca compartilhe a chave nem a coloque em `config.js`, no frontend ou no GitHub. O endpoint `/api/health` informa se a credencial foi carregada pelo servidor.
+O primeiro início baixa `qwen2.5:7b`, que ocupa vários gigabytes e precisa de espaço e memória de GPU. O Compose persiste os pesos do modelo e a base legal em volumes Docker, mesmo que os contêineres sejam recriados. Para escolher outro modelo compatível com Ollama, defina `AI_MODEL` no ambiente antes de subir a composição.
 
-### Frontend no GitHub Pages e backend separado
+Configure um proxy HTTPS para encaminhar tráfego público à porta 8080. Não publique a porta 11434 do Ollama na internet. `CORS_ALLOWED_ORIGINS` já inclui `https://tiguys.github.io`; para outros domínios, defina a lista de origens separadas por vírgula. O endpoint aplica limite de requisições e concorrência, mas, por ser público, ainda deve ser monitorado e protegido contra abuso pelo provedor de hospedagem.
 
-O GitHub Pages serve arquivos estáticos e não executa `server.py`. Portanto, o chat não responderá no site publicado enquanto não existir um backend público. Publique `server.py` como Web Service (por exemplo, no Render), configure o provedor no servidor ou instale o Ollama no próprio host do backend e confirme que `/api/health` responde. Em seguida, defina `AI_API_BASE_URL` em `config.js` para a URL pública desse backend, sem barra final, e publique novamente o frontend. Não use `localhost` nessa configuração: no navegador de cada visitante, `localhost` aponta para o computador do visitante. A URL do backend é pública; credenciais devem permanecer somente no ambiente privado do servidor.
+Após obter o endereço HTTPS público do backend, configure essa URL em `config.js`:
 
-## 5. Importante sobre segurança
+```js
+window.AI_API_BASE_URL = "https://SEU-BACKEND-PUBLICO";
+```
 
-Somente a **anon public key** pode ser enviada ao navegador. Nunca configure a `service_role` key em `config.js` ou nas variáveis servidas ao frontend.
+Publique novamente os arquivos estáticos no GitHub Pages. A Law AI tentará primeiro `/api/ai` nesse backend; respostas do servidor usam o modelo hospedado e a base SQLite. Se o backend não estiver disponível e o navegador tiver WebGPU, a interface ainda pode usar o modelo local como alternativa.
 
-O schema atual usa uma política aberta para `anon`, adequada para um projeto/TCC de demonstração, mas não recomendada para produção com dados jurídicos reais. Para produção, use Supabase Auth e políticas RLS por usuário/organização.
+## 5. Dados, privacidade e limites
 
-## 6. Limitação atual da IA
+A base SQLite guarda textos legais públicos, URL oficial, data de obtenção, hash e trechos indexados. Ela não guarda as perguntas nem as conversas feitas ao modelo hospedado. O histórico da sessão fica na memória da página; no modo de fallback local do navegador, respostas independentes podem ser gravadas no IndexedDB daquele dispositivo e apagadas pelo botão do chat.
 
-A IA usa o Ollama local automaticamente quando o serviço está disponível. Em hospedagens sem Ollama, OpenAI ou NVIDIA NIM podem ser configurados pelo administrador no servidor, sem que os usuários forneçam chaves. O modelo local é menor e pode ser menos preciso que modelos remotos; respostas jurídicas devem ser revisadas e referências e prazos conferidos em fontes oficiais.
+A busca cobre Constituição, códigos principais e um conjunto de leis especiais. A recuperação por palavras-chave pode não encontrar todos os dispositivos. A data de obtenção não prova, sozinha, que a norma continua vigente ou é aplicável ao caso; não há pesquisa de jurisprudência. Respostas jurídicas relevantes, prazos e cálculos precisam ser conferidos em fonte oficial e revisados pelo profissional responsável.
 
-Se o provedor responder com erro de crédito insuficiente, quota esgotada ou chave inválida, o sistema exibirá uma mensagem clara em vez de falha genérica. Nesse caso, é necessário recarregar créditos da conta do provedor, validar a chave ou trocar para outro modelo/fornecedor.
-
-A assistente usa as instruções jurídicas do backend para orientar respostas em português, análise cuidadosa de fatos, elaboração de rascunhos e proteção contra pedidos ilícitos. Para perguntas sobre penas, há recuperação limitada de excertos da legislação oficial do Planalto, mas não pesquisa de jurisprudência, integração com tribunais, leitura de anexos, histórico persistente ou acesso autorizado ao cadastro de clientes/processos. Não use respostas como pesquisa jurídica completa ou com dados reais sigilosos; confirme legislação, jurisprudência e prazos em fontes oficiais e revise minutas com o advogado responsável. O login atual do site não autentica nem autoriza o endpoint de IA no servidor.
+Somente a chave pública anon/publishable do Supabase pode ser enviada ao navegador. Nunca use a chave `service_role` em `config.js` ou em valores servidos ao frontend. O schema atual do Supabase tem políticas abertas para demonstração e não deve ser usado com dados jurídicos reais sem autenticação e regras RLS adequadas.
