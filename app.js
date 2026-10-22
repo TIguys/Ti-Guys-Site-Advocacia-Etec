@@ -21,7 +21,7 @@ window.alternarVisibilidadeSenha = function(id, button) {
 };
 
 window.solicitarSecretaria = function() {
-  window.showToast('Secretaria (telefone fictício): (11) 5555-0100.', 'support_agent');
+  window.showToast('Use o botão de agendamento para ligar para a secretaria.', 'support_agent');
 };
 
 window.renderPortalCliente = function() {
@@ -68,6 +68,59 @@ async function derivePasswordHash(password, salt) {
   return Array.from(new Uint8Array(bits), byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
+function formatBrazilianPhone(value) {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  if (digits.length <= 2) return digits ? `(${digits}` : '';
+  const areaCode = digits.slice(0, 2);
+  if (digits.length <= 6) return `(${areaCode}) ${digits.slice(2)}`;
+  if (digits.length <= 10) return `(${areaCode}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return `(${areaCode}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
+function formatBrazilianDocument(value) {
+  const digits = value.replace(/\D/g, '').slice(0, 14);
+  if (digits.length <= 11) {
+    return digits
+      .replace(/^(\d{3})(\d)/, '$1.$2')
+      .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+      .replace(/\.(\d{3})(\d)/, '.$1-$2');
+  }
+  return digits
+    .replace(/^(\d{2})(\d)/, '$1.$2')
+    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/, '.$1/$2')
+    .replace(/(\d{4})(\d)/, '$1-$2');
+}
+
+function hasValidCpfCnpj(value) {
+  const digits = value.replace(/\D/g, '');
+  if (/^(\d)\1+$/.test(digits)) return false;
+
+  if (digits.length === 11) {
+    const calculateDigit = (base, weights) => {
+      const remainder = weights.reduce((sum, weight, index) =>
+        sum + Number(base[index]) * weight, 0) % 11;
+      return remainder < 2 ? 0 : 11 - remainder;
+    };
+    const first = calculateDigit(digits.slice(0, 9), [10, 9, 8, 7, 6, 5, 4, 3, 2]);
+    const second = calculateDigit(digits.slice(0, 9) + first, [11, 10, 9, 8, 7, 6, 5, 4, 3, 2]);
+    return digits.endsWith(`${first}${second}`);
+  }
+
+  if (digits.length === 14) {
+    const calculateDigit = (base, weights) => {
+      const remainder = weights.reduce((sum, weight, index) =>
+        sum + Number(base[index]) * weight, 0) % 11;
+      return remainder < 2 ? 0 : 11 - remainder;
+    };
+    const first = calculateDigit(digits.slice(0, 12), [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+    const second = calculateDigit(digits.slice(0, 12) + first, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+    return digits.endsWith(`${first}${second}`);
+  }
+
+  return false;
+}
+
 function gerarSaltSenha() {
   return crypto.getRandomValues(new Uint8Array(16)).reduce((hex, byte) => hex + byte.toString(16).padStart(2, '0'), '');
 }
@@ -100,6 +153,7 @@ window.loginRapido = function(tipo) {
 };
 
 window.fazerLogout = function() {
+  window.alternarMenuNavegacao(false, false);
   db.clearSession();
   const viewLogin = document.getElementById('view-login');
   const mainHeader = document.getElementById('main-header');
@@ -136,10 +190,12 @@ function iniciarSessaoUI(user) {
   const isClient = user.role === 'cliente';
   const isLawyer = user.role === 'advogado' || user.id === 'user-2';
   const isSecretary = user.id === 'user-1' || user.role === 'secretaria' || String(user.role || '').startsWith('Operacional');
-  document.getElementById('staff-navigation-desktop')?.classList.toggle('hidden', !isSecretary);
-  document.getElementById('staff-navigation-mobile')?.classList.toggle('hidden', !isSecretary);
+  document.getElementById('btn-open-navigation')?.classList.toggle('hidden', !isSecretary);
+  document.getElementById('staff-navigation-drawer')?.classList.toggle('hidden', true);
+  document.getElementById('staff-navigation-drawer')?.setAttribute('aria-hidden', 'true');
+  document.getElementById('btn-open-navigation')?.setAttribute('aria-expanded', 'false');
   document.getElementById('nav-cadastros')?.classList.toggle('hidden', !isSecretary);
-  document.getElementById('nav-cadastros-mobile')?.classList.toggle('hidden', !isSecretary);
+  document.body.classList.remove('navigation-open');
 
   if (user.role === 'cliente') window.navegarPara('area-cliente');
   else if (user.role === 'advogado' || user.id === 'user-2') window.navegarPara('area-advogado');
@@ -163,17 +219,35 @@ window.alternarTemaGlobal = function() {
   window.showToast(`Modo ${newTheme === 'dark' ? 'Escuro' : 'Claro'} ativado.`, 'light_mode');
 };
 
+window.alternarMenuNavegacao = function(abrir, devolverFoco = true) {
+  const drawer = document.getElementById('staff-navigation-drawer');
+  const trigger = document.getElementById('btn-open-navigation');
+  if (!drawer || !trigger || trigger.classList.contains('hidden')) return;
+
+  const wasOpen = !drawer.classList.contains('hidden');
+  drawer.classList.toggle('hidden', !abrir);
+  drawer.setAttribute('aria-hidden', String(!abrir));
+  trigger.setAttribute('aria-expanded', String(abrir));
+  document.body.classList.toggle('navigation-open', abrir);
+
+  if (abrir) {
+    document.getElementById('btn-close-navigation')?.focus();
+  } else if (devolverFoco && wasOpen) {
+    trigger.focus();
+  }
+};
+
 window.navegarPara = function(viewId) {
+  window.alternarMenuNavegacao(false);
   const currentUser = db.getSession();
   const isSecretary = currentUser?.id === 'user-1' || currentUser?.role === 'secretaria' || String(currentUser?.role || '').startsWith('Operacional');
   if (currentUser && !isSecretary) {
     if (currentUser.role === 'advogado' || currentUser.id === 'user-2') {
       if (viewId !== 'area-advogado') viewId = 'area-advogado';
-    } else if (!['area-cliente', 'lawai'].includes(viewId)) viewId = 'area-cliente';
+    } else if (viewId !== 'area-cliente') viewId = 'area-cliente';
   }
   const spaViews = document.querySelectorAll('.spa-view');
-  const navLinks = document.querySelectorAll('.nav-link');
-  const mobileNavLinks = document.querySelectorAll('.nav-link-mobile');
+  const navLinks = document.querySelectorAll('#staff-navigation .nav-link');
 
   spaViews.forEach(view => {
     if (view.id === `view-${viewId}`) {
@@ -185,26 +259,14 @@ window.navegarPara = function(viewId) {
 
   navLinks.forEach(link => {
     if (link.getAttribute('data-view') === viewId) {
-      link.classList.add('active', 'font-semibold', 'text-brand-800', 'dark:text-gold-400', 'border-b-2', 'border-brand-800', 'dark:border-gold-400');
-      link.classList.remove('text-stone-600', 'dark:text-stone-400');
+      link.classList.add('active');
     } else {
-      link.classList.remove('active', 'font-semibold', 'text-brand-800', 'dark:text-gold-400', 'border-b-2', 'border-brand-800', 'dark:border-gold-400');
-      link.classList.add('text-stone-600', 'dark:text-stone-400');
-    }
-  });
-
-  mobileNavLinks.forEach(link => {
-    const fnStr = link.getAttribute('onclick') || '';
-    if (fnStr.includes(`'${viewId}'`)) {
-      link.classList.add('font-semibold', 'text-brand-800', 'dark:text-gold-400');
-      link.classList.remove('text-stone-600', 'dark:text-stone-300');
-    } else {
-      link.classList.remove('font-semibold', 'text-brand-800', 'dark:text-gold-400');
-      link.classList.add('text-stone-600', 'dark:text-stone-300');
+      link.classList.remove('active');
     }
   });
 
   renderView(viewId);
+  document.dispatchEvent(new CustomEvent('app:viewchange', { detail: { viewId } }));
 };
 
 window.fecharModal = function(modalId) {
@@ -254,6 +316,367 @@ function formatTimeIso(iso) {
   return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
+function localDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function parseLocalDateKey(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '');
+  if (!match) return null;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return date.getFullYear() === Number(match[1]) &&
+    date.getMonth() === Number(match[2]) - 1 &&
+    date.getDate() === Number(match[3]) ? date : null;
+}
+
+function formatLocalDateKey(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '');
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : '—';
+}
+
+function parseBrazilianDate(value) {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value || '');
+  if (!match) return null;
+  return parseLocalDateKey(`${match[3]}-${match[2]}-${match[1]}`);
+}
+
+function formatBrazilianDateInput(value) {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+function getMonthKey(year, monthIndex) {
+  const date = new Date(year, monthIndex, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function getMonthLabel(monthKey) {
+  const [year, month] = monthKey.split('-').map(Number);
+  const label = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' })
+    .format(new Date(year, month - 1, 1));
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function shiftCalendarDate(date, unit, amount) {
+  if (unit === 'day') {
+    const shifted = new Date(date);
+    shifted.setDate(shifted.getDate() + amount);
+    return shifted;
+  }
+  const targetMonth = new Date(
+    date.getFullYear() + (unit === 'year' ? amount : 0),
+    date.getMonth() + (unit === 'month' ? amount : 0),
+    1
+  );
+  const lastDay = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0).getDate();
+  return new Date(targetMonth.getFullYear(), targetMonth.getMonth(), Math.min(date.getDate(), lastDay));
+}
+
+let dashboardFinanceChart = null;
+let dashboardConsultationChart = null;
+
+function createDashboardChart(canvas, labels, datasets, formatter) {
+  const isDark = document.documentElement.classList.contains('dark');
+  const textColor = isDark ? '#cbd5e1' : '#57534e';
+  const gridColor = isDark ? 'rgba(203, 213, 225, 0.12)' : 'rgba(87, 83, 78, 0.12)';
+  return new Chart(canvas, {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: datasets.length > 1,
+          position: 'bottom',
+          labels: { color: textColor }
+        },
+        tooltip: {
+          callbacks: {
+            label(context) {
+              const value = context.parsed.y;
+              return `${context.dataset.label ? `${context.dataset.label}: ` : ''}${formatter(value)}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: textColor }
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: gridColor },
+          ticks: { color: textColor, callback: formatter }
+        }
+      }
+    }
+  });
+}
+
+function renderFinanceDashboard() {
+  const periodSelect = document.getElementById('dash-finance-period');
+  const dateInput = document.getElementById('dash-finance-date');
+  const comparisonSelect = document.getElementById('dash-finance-comparison');
+  const financeCanvas = document.getElementById('chartDashFinance');
+  const consultationCanvas = document.getElementById('chartDashConsultas');
+  if (!periodSelect || !dateInput || !comparisonSelect || !financeCanvas || !consultationCanvas) return;
+
+  if (!dateInput.value) dateInput.value = formatLocalDateKey(localDateKey(new Date()));
+  const referenceDate = parseBrazilianDate(dateInput.value);
+  if (!referenceDate) {
+    const chartError = document.getElementById('dash-finance-chart-error');
+    if (chartError) {
+      chartError.textContent = 'Informe uma data válida no formato dia/mês/ano para exibir os gráficos.';
+      chartError.classList.remove('hidden');
+    }
+    return;
+  }
+  const period = periodSelect.value;
+  const comparisonOptions = period === 'daily'
+    ? [
+        { value: 'previous', label: 'Dia anterior' },
+        { value: 'previous-month', label: 'Mesmo dia do mês anterior' },
+        { value: 'previous-year', label: 'Mesmo dia do ano anterior' }
+      ]
+    : period === 'monthly'
+      ? [
+          { value: 'previous', label: 'Mês anterior' },
+          { value: 'previous-year', label: 'Mesmo mês do ano anterior' }
+        ]
+      : [{ value: 'previous-year', label: 'Ano anterior' }];
+
+  const selectedComparison = comparisonSelect.value;
+  comparisonSelect.innerHTML = comparisonOptions.map(option =>
+    `<option value="${option.value}">${option.label}</option>`
+  ).join('');
+  comparisonSelect.value = comparisonOptions.some(option => option.value === selectedComparison)
+    ? selectedComparison
+    : comparisonOptions[0].value;
+
+  const consultations = db.getConsultas().filter(consultation =>
+    consultation.status !== 'cancelada' && /^\d{4}-\d{2}-\d{2}/.test(consultation.inicio || '')
+  );
+  const statsForPeriod = (key, granularity) => consultations.reduce((stats, consultation) => {
+    const dateKey = consultation.inicio.slice(0, 10);
+    const matches = granularity === 'day'
+      ? dateKey === key
+      : granularity === 'month'
+        ? dateKey.slice(0, 7) === key
+        : dateKey.slice(0, 4) === key;
+    if (matches) {
+      stats.count += 1;
+      const amount = Number(consultation.valorHonorario);
+      if (Number.isFinite(amount)) stats.total += amount;
+    }
+    return stats;
+  }, { count: 0, total: 0 });
+
+  const referenceYear = referenceDate.getFullYear();
+  const referenceMonth = referenceDate.getMonth();
+  let currentKey;
+  let comparisonKey;
+  let granularity;
+  let currentLabel;
+  let comparisonLabel;
+  let rows;
+
+  if (period === 'daily') {
+    granularity = 'day';
+    currentKey = localDateKey(referenceDate);
+    const comparisonDate = comparisonSelect.value === 'previous'
+      ? shiftCalendarDate(referenceDate, 'day', -1)
+      : comparisonSelect.value === 'previous-month'
+        ? shiftCalendarDate(referenceDate, 'month', -1)
+        : shiftCalendarDate(referenceDate, 'year', -1);
+    comparisonKey = localDateKey(comparisonDate);
+    currentLabel = `Dia ${formatLocalDateKey(currentKey)}`;
+    comparisonLabel = formatLocalDateKey(comparisonKey);
+    rows = [{
+      label: currentLabel,
+      comparisonLabel,
+      chartLabel: currentLabel,
+      current: statsForPeriod(currentKey, 'day'),
+      comparison: statsForPeriod(comparisonKey, 'day')
+    }];
+  } else if (period === 'monthly') {
+    granularity = 'month';
+    currentKey = getMonthKey(referenceYear, referenceMonth);
+    const comparisonMonth = comparisonSelect.value === 'previous'
+      ? new Date(referenceYear, referenceMonth - 1, 1)
+      : new Date(referenceYear - 1, referenceMonth, 1);
+    comparisonKey = getMonthKey(comparisonMonth.getFullYear(), comparisonMonth.getMonth());
+    currentLabel = getMonthLabel(currentKey);
+    comparisonLabel = getMonthLabel(comparisonKey);
+    const comparisonDays = new Date(
+      comparisonMonth.getFullYear(),
+      comparisonMonth.getMonth() + 1,
+      0
+    ).getDate();
+    const currentDays = new Date(referenceYear, referenceMonth + 1, 0).getDate();
+    rows = Array.from({ length: Math.max(currentDays, comparisonDays) }, (_, index) => {
+      const day = index + 1;
+      const currentDateKey = day <= currentDays
+        ? `${currentKey}-${String(day).padStart(2, '0')}`
+        : null;
+      const compareDateKey = day <= comparisonDays
+        ? `${comparisonKey}-${String(day).padStart(2, '0')}`
+        : null;
+      return {
+        label: currentDateKey ? formatLocalDateKey(currentDateKey) : '—',
+        comparisonLabel: compareDateKey ? formatLocalDateKey(compareDateKey) : '—',
+        chartLabel: `Dia ${String(day).padStart(2, '0')}`,
+        current: currentDateKey ? statsForPeriod(currentDateKey, 'day') : { count: 0, total: 0 },
+        comparison: compareDateKey ? statsForPeriod(compareDateKey, 'day') : { count: 0, total: 0 }
+      };
+    });
+  } else {
+    granularity = 'year';
+    currentKey = String(referenceYear);
+    comparisonKey = String(referenceYear - 1);
+    currentLabel = `Ano ${currentKey}`;
+    comparisonLabel = `Ano ${comparisonKey}`;
+    rows = Array.from({ length: 12 }, (_, index) => {
+      const monthKey = getMonthKey(referenceYear, index);
+      const compareMonthKey = getMonthKey(referenceYear - 1, index);
+      return {
+        label: getMonthLabel(monthKey).replace(` de ${referenceYear}`, ''),
+        comparisonLabel: getMonthLabel(compareMonthKey).replace(` de ${referenceYear - 1}`, ''),
+        chartLabel: getMonthLabel(monthKey).replace(` de ${referenceYear}`, ''),
+        current: statsForPeriod(monthKey, 'month'),
+        comparison: statsForPeriod(compareMonthKey, 'month')
+      };
+    });
+  }
+
+  const currentTotal = statsForPeriod(currentKey, granularity);
+  const comparisonTotal = statsForPeriod(comparisonKey, granularity);
+  const difference = currentTotal.total - comparisonTotal.total;
+  const changeElement = document.getElementById('dash-finance-change');
+  const changePercentElement = document.getElementById('dash-finance-change-percent');
+  const currentLabelElement = document.getElementById('dash-finance-current-label');
+  const comparisonLabelElement = document.getElementById('dash-finance-compare-label');
+  const currentTotalElement = document.getElementById('dash-finance-current-total');
+  const comparisonTotalElement = document.getElementById('dash-finance-compare-total');
+  const currentCountElement = document.getElementById('dash-finance-current-count');
+  const comparisonCountElement = document.getElementById('dash-finance-compare-count');
+
+  if (currentLabelElement) currentLabelElement.textContent = currentLabel;
+  if (comparisonLabelElement) comparisonLabelElement.textContent = comparisonLabel;
+  if (currentTotalElement) currentTotalElement.textContent = formatMoney(currentTotal.total);
+  if (comparisonTotalElement) comparisonTotalElement.textContent = formatMoney(comparisonTotal.total);
+  if (currentCountElement) currentCountElement.textContent = `${currentTotal.count} ${currentTotal.count === 1 ? 'consulta' : 'consultas'}`;
+  if (comparisonCountElement) comparisonCountElement.textContent = `${comparisonTotal.count} ${comparisonTotal.count === 1 ? 'consulta' : 'consultas'}`;
+  if (changeElement) {
+    changeElement.textContent = `${difference > 0 ? '+' : ''}${formatMoney(difference)}`;
+    changeElement.classList.toggle('text-emerald-700', difference > 0);
+    changeElement.classList.toggle('dark:text-emerald-400', difference > 0);
+    changeElement.classList.toggle('text-red-700', difference < 0);
+    changeElement.classList.toggle('dark:text-red-400', difference < 0);
+    changeElement.classList.toggle('text-stone-800', difference === 0);
+    changeElement.classList.toggle('dark:text-stone-100', difference === 0);
+  }
+  if (changePercentElement) {
+    changePercentElement.textContent = comparisonTotal.total === 0
+      ? currentTotal.total === 0 ? 'Sem variação' : 'Sem base anterior para calcular percentual'
+      : `${difference > 0 ? '+' : ''}${new Intl.NumberFormat('pt-BR', { style: 'percent', maximumFractionDigits: 1 }).format(difference / comparisonTotal.total)}`;
+  }
+
+  const chartError = document.getElementById('dash-finance-chart-error');
+  if (typeof Chart === 'undefined') {
+    if (chartError) {
+      chartError.textContent = 'Não foi possível carregar os gráficos. Verifique a conexão e recarregue a página.';
+      chartError.classList.remove('hidden');
+    }
+    return;
+  }
+  if (chartError) chartError.classList.add('hidden');
+
+  const financeTitle = document.getElementById('dash-finance-chart-title');
+  const consultationTitle = document.getElementById('dash-consultas-chart-title');
+  if (financeTitle) {
+    financeTitle.textContent = period === 'daily'
+      ? `Honorários — ${currentLabel} x ${comparisonLabel}`
+      : period === 'monthly'
+        ? `Honorários por dia — ${currentLabel} x ${comparisonLabel}`
+        : `Honorários por mês — ${currentLabel} x ${comparisonLabel}`;
+  }
+  if (consultationTitle) {
+    consultationTitle.textContent = period === 'daily'
+      ? `Consultas — ${currentLabel} x ${comparisonLabel}`
+      : period === 'monthly'
+        ? `Consultas por dia — ${currentLabel} x ${comparisonLabel}`
+        : `Consultas por mês — ${currentLabel} x ${comparisonLabel}`;
+  }
+
+  const chartLabels = period === 'daily'
+    ? [currentLabel, comparisonLabel]
+    : rows.map(row => row.chartLabel);
+  const financeDatasets = period === 'daily'
+    ? [{
+        label: 'Honorários',
+        data: [currentTotal.total, comparisonTotal.total],
+        backgroundColor: ['#701A24', '#CFAC4C'],
+        borderRadius: 6
+      }]
+    : [
+        {
+          label: currentLabel,
+          data: rows.map(row => row.current.total),
+          backgroundColor: '#701A24',
+          borderRadius: 6
+        },
+        {
+          label: comparisonLabel,
+          data: rows.map(row => row.comparison.total),
+          backgroundColor: '#CFAC4C',
+          borderRadius: 6
+        }
+      ];
+  const consultationDatasets = period === 'daily'
+    ? [{
+        label: 'Consultas',
+        data: [currentTotal.count, comparisonTotal.count],
+        backgroundColor: ['#3D0B12', '#B89635'],
+        borderRadius: 6
+      }]
+    : [
+        {
+          label: currentLabel,
+          data: rows.map(row => row.current.count),
+          backgroundColor: '#3D0B12',
+          borderRadius: 6
+        },
+        {
+          label: comparisonLabel,
+          data: rows.map(row => row.comparison.count),
+          backgroundColor: '#B89635',
+          borderRadius: 6
+        }
+      ];
+
+  dashboardFinanceChart?.destroy();
+  dashboardConsultationChart?.destroy();
+  dashboardFinanceChart = createDashboardChart(
+    financeCanvas,
+    chartLabels,
+    financeDatasets,
+    value => formatMoney(value)
+  );
+  dashboardConsultationChart = createDashboardChart(
+    consultationCanvas,
+    chartLabels,
+    consultationDatasets,
+    value => String(Number(value).toLocaleString('pt-BR'))
+  );
+}
+
 // RENDERIZADOR DE VISÕES
 function renderView(viewId) {
   switch (viewId) {
@@ -271,8 +694,6 @@ function renderView(viewId) {
       break;
     case 'relatorios':
       renderRelatorios();
-      break;
-    case 'lawai':
       break;
     case 'area-cliente': window.renderPortalCliente(); break;
     case 'area-advogado': renderPortalAdvogado(); break;
@@ -313,6 +734,8 @@ function renderDashboard() {
 
   const elFatMes = document.getElementById('metric-faturamento-mes');
   if (elFatMes) elFatMes.textContent = formatMoney(faturamentoMes);
+
+  renderFinanceDashboard();
 
   // Próximas consultas
   const proximasConsultas = consultas
@@ -928,182 +1351,45 @@ function renderRelatorios() {
   }
 }
 
-// ========================================================
-// LAW AI (Assistente Jurídico)
-// ========================================================
-const lawAIHistory = [];
-const lawAIBaseUrl = String(window.AI_API_BASE_URL || '').replace(/\/+$/, '');
-const lawAIEndpoint = (path) => `${lawAIBaseUrl}${path}`;
-
-window.enviarMensagemLawAI = function() {
-  const lawaiChatBox = document.getElementById('lawai-chat-box');
-  const lawaiInput = document.getElementById('lawai-input-msg');
-
-  if (!lawaiChatBox || !lawaiInput) return;
-
-  const msg = lawaiInput.value.trim();
-  if (!msg) return;
-
-  const userMessage = document.createElement('div');
-  userMessage.className = 'flex items-start justify-end gap-3';
-  userMessage.innerHTML = `
-    <div class="bg-brand-800 text-white p-3 rounded-lg max-w-[80%] leading-relaxed whitespace-pre-wrap">
-      ${String(msg).replace(/</g, '&lt;').replace(/>/g, '&gt;')}
-    </div>
-  `;
-  lawaiChatBox.appendChild(userMessage);
-
-  lawaiInput.value = '';
-  lawaiInput.disabled = true;
-  document.getElementById('lawai-btn-send')?.setAttribute('disabled', 'disabled');
-
-  const loading = document.createElement('div');
-  loading.className = 'flex items-start gap-3';
-  loading.innerHTML = `
-    <div class="w-8 h-8 rounded-full bg-brand-800 text-gold-400 font-bold flex items-center justify-center shrink-0">AI</div>
-    <div class="bg-stone-100 dark:bg-darkcard p-3 rounded-lg text-stone-800 dark:text-stone-200 max-w-[80%] leading-relaxed">
-      Pensando...
-    </div>
-  `;
-  lawaiChatBox.appendChild(loading);
-  lawaiChatBox.scrollTop = lawaiChatBox.scrollHeight;
-
-  Promise.resolve()
-    .then(async () => {
-      if (!lawAIBaseUrl) {
-        try {
-          const saved = await window.LawAILocal.findAnswer(msg);
-          if (!lawAIHistory.length && saved) return { answer: saved.answer, cached: true, savedAt: saved.savedAt };
-        } catch (error) {
-          console.warn('[Law AI] Banco local indisponível:', error);
-        }
-      }
-
-      if (lawAIBaseUrl) {
-        try {
-          const response = await fetch(lawAIEndpoint('/api/ai'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: msg, history: lawAIHistory.slice(-10) })
-          });
-          const data = await response.json().catch(() => ({}));
-          if (!response.ok) throw new Error(data.error || 'O backend da IA não respondeu.');
-          if (data.answer) return { answer: data.answer, cached: false, backend: true };
-        } catch (error) {
-          if (!window.LawAILocal?.hasWebGPU()) throw error;
-          const status = document.getElementById('lawai-status');
-          if (status) status.textContent = 'Backend indisponível. Tentando responder no modelo local do navegador...';
-        }
-      }
-
-      const messages = [
-        ...lawAIHistory.slice(-10),
-        { role: 'user', content: msg }
-      ];
-      const answer = await window.LawAILocal.answer(messages, (progress) => {
-        const status = document.getElementById('lawai-status');
-        if (status) status.textContent = progress;
-        const loadingText = loading.querySelector('.bg-stone-100');
-        if (loadingText) loadingText.textContent = progress;
-      });
-      return { answer, cached: false };
-    })
-    .then(async (result) => {
-      loading.remove();
-      const answer = String(result.answer || '').trim();
-      if (!lawAIBaseUrl && !result.cached && !lawAIHistory.length) {
-        try { await window.LawAILocal.saveAnswer(msg, answer); }
-        catch (error) { console.warn('[Law AI] Não foi possível salvar a resposta local:', error); }
-      }
-      lawAIHistory.push({ role: 'user', content: msg }, { role: 'assistant', content: answer });
-      if (lawAIHistory.length > 10) lawAIHistory.splice(0, lawAIHistory.length - 10);
-
-      const cacheNotice = result.cached
-        ? `Resposta recuperada do historico local de ${new Date(result.savedAt).toLocaleDateString('pt-BR')}. Confira se continua atual.`
-        : result.backend
-          ? 'Resposta gerada pelo backend. A base oficial é usada quando há trechos pertinentes; a pergunta não é salva no servidor.'
-          : 'Resposta gerada no navegador e salva somente neste dispositivo.';
-      const status = document.getElementById('lawai-status');
-      if (status && !lawAIBaseUrl) {
-        status.textContent = result.cached
-          ? 'Resposta recuperada do banco local deste navegador.'
-          : 'Modelo local ativo. Respostas independentes ficam salvas neste navegador.';
-      }
-      const botMessage = document.createElement('div');
-      botMessage.className = 'flex items-start gap-3';
-      botMessage.innerHTML = `
-        <div class="w-8 h-8 rounded-full bg-brand-800 text-gold-400 font-bold flex items-center justify-center shrink-0">AI</div>
-        <div class="bg-stone-100 dark:bg-darkcard p-3 rounded-lg text-stone-800 dark:text-stone-200 max-w-[80%] leading-relaxed whitespace-pre-wrap">
-          ${String(answer).replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}
-          <div class="mt-2 pt-2 border-t border-stone-300 dark:border-stone-700 text-[10px] opacity-70">${cacheNotice}</div>
-        </div>
-      `;
-      lawaiChatBox.appendChild(botMessage);
-    })
-    .catch((error) => {
-      loading.remove();
-      const errorText = error instanceof TypeError
-        ? 'Não foi possível carregar o modelo local. Conecte-se à internet na primeira utilização e tente novamente.'
-        : (error.message || 'Erro ao consultar a IA.');
-      const errorMessage = document.createElement('div');
-      errorMessage.className = 'flex items-start gap-3';
-      errorMessage.innerHTML = `
-        <div class="w-8 h-8 rounded-full bg-red-600 text-white font-bold flex items-center justify-center shrink-0">!</div>
-        <div class="bg-red-50 text-red-700 p-3 rounded-lg max-w-[80%] leading-relaxed">
-          ${String(errorText).replace(/</g, '&lt;').replace(/>/g, '&gt;')}
-        </div>
-      `;
-      lawaiChatBox.appendChild(errorMessage);
-    })
-    .finally(() => {
-      lawaiInput.disabled = false;
-      document.getElementById('lawai-btn-send')?.removeAttribute('disabled');
-      lawaiInput.focus();
-      lawaiChatBox.scrollTop = lawaiChatBox.scrollHeight;
-    });
-};
-
-// INICIALIZAÇÃO EVENT LISTENERS AO CARREGAR DOM
 document.addEventListener('DOMContentLoaded', () => {
   const htmlEl = document.documentElement;
-
-  const lawAIStatus = document.getElementById('lawai-status');
-  if (lawAIStatus) {
-    if (lawAIBaseUrl) {
-      fetch(lawAIEndpoint('/api/health'))
-        .then(async (response) => {
-          if (!response.ok) throw new Error('Servi\u00e7o indispon\u00edvel.');
-          return response.json();
-        })
-        .then((health) => {
-          const knowledge = health.legalKnowledge || {};
-          const sourceCount = Number(knowledge.source_count || 0);
-          const chunkCount = Number(knowledge.chunk_count || 0);
-          const knowledgeMessage = sourceCount
-            ? ` Base jur\u00eddica: ${sourceCount} normas e ${chunkCount} trechos.`
-            : ' A base jur\u00eddica ainda precisa ser sincronizada.';
-          lawAIStatus.textContent = `${health.aiMessage || 'Backend conectado.'}${knowledgeMessage}`;
-        })
-        .catch(() => {
-          lawAIStatus.textContent = 'Backend n\u00e3o conectado. O chat tentar\u00e1 usar o modelo local deste navegador.';
-        });
-    } else if (window.LawAILocal?.hasWebGPU()) {
-      lawAIStatus.textContent = 'IA local pronta para carregar. Na primeira utiliza\u00e7\u00e3o, conecte-se \u00e0 internet para baixar o modelo. Depois, ele fica no cache do navegador. As respostas ficam neste dispositivo.';
-    } else {
-      lawAIStatus.textContent = 'Este navegador n\u00e3o oferece WebGPU. Use Chrome ou Edge atualizados em dispositivo compat\u00edvel. Respostas j\u00e1 salvas ainda podem ser recuperadas.';
-    }
-  }
-
-  document.getElementById('lawai-clear-cache')?.addEventListener('click', async () => {
-    const button = document.getElementById('lawai-clear-cache');
-    try {
-      await window.LawAILocal.clearAnswers();
-      if (lawAIStatus) lawAIStatus.textContent = 'Respostas salvas apagadas deste navegador. O modelo baixado foi mantido.';
-    } catch (error) {
-      if (lawAIStatus) lawAIStatus.textContent = error.message || 'N\u00e3o foi poss\u00edvel apagar as respostas salvas.';
-    }
-    button?.blur();
+  document.getElementById('register-phone')?.addEventListener('input', (event) => {
+    event.currentTarget.value = formatBrazilianPhone(event.currentTarget.value);
   });
+  document.getElementById('register-cpf-cnpj')?.addEventListener('input', (event) => {
+    event.currentTarget.value = formatBrazilianDocument(event.currentTarget.value);
+  });
+
+  document.addEventListener('keydown', event => {
+    const drawer = document.getElementById('staff-navigation-drawer');
+    if (!drawer || drawer.classList.contains('hidden')) return;
+
+    if (event.key === 'Escape') {
+      window.alternarMenuNavegacao(false);
+    } else if (event.key === 'Tab') {
+      const focusableElements = Array.from(drawer.querySelectorAll(
+        'button:not([disabled]):not([tabindex="-1"]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )).filter(element => element.getClientRects().length > 0);
+      if (focusableElements.length === 0) return;
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
+    }
+  });
+
+  document.getElementById('dash-finance-period')?.addEventListener('change', renderFinanceDashboard);
+  document.getElementById('dash-finance-date')?.addEventListener('input', (event) => {
+    event.currentTarget.value = formatBrazilianDateInput(event.currentTarget.value);
+  });
+  document.getElementById('dash-finance-date')?.addEventListener('change', renderFinanceDashboard);
+  document.getElementById('dash-finance-comparison')?.addEventListener('change', renderFinanceDashboard);
 
   function aplicarTema(theme) {
     if (theme === 'dark') {
@@ -1118,11 +1404,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   aplicarTema(db.getTheme());
 
-  // Checa se usuário possui sessão ativa salva
-  const savedSession = db.getSession();
-  if (savedSession) {
-    iniciarSessaoUI(savedSession);
-  }
+  db.clearSession();
 
   // Formulário de Login
   document.getElementById('form-login')?.addEventListener('submit', async (e) => {
@@ -1130,8 +1412,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const email = document.getElementById('login-email')?.value.trim().toLowerCase();
     const password = document.getElementById('login-senha')?.value || '';
-    const requestedRole = document.getElementById('login-role')?.value || 'cliente';
+    const requestedRole = document.getElementById('login-role')?.value;
 
+    if (!requestedRole) {
+      window.showToast('Selecione como entrar para continuar.', 'error', true);
+      return;
+    }
     if (!email || !password) {
       window.showToast('Informe e-mail e senha para continuar.', 'error', true);
       return;
@@ -1189,25 +1475,62 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('form-register')?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const form = e.currentTarget;
     const name = document.getElementById('register-name').value.trim();
     const email = document.getElementById('register-email').value.trim().toLowerCase();
+    const cpfCnpj = document.getElementById('register-cpf-cnpj').value.trim();
+    const phone = document.getElementById('register-phone').value.trim();
+    const address = document.getElementById('register-address').value.trim();
     const password = document.getElementById('register-password').value;
     const confirmation = document.getElementById('register-confirm-password').value;
+    const phoneDigits = phone.replace(/\D/g, '');
+    if (phoneDigits.length !== 10 && phoneDigits.length !== 11) {
+      window.showToast('Informe um telefone brasileiro válido com DDD.', 'error', true);
+      return;
+    }
+    if (!hasValidCpfCnpj(cpfCnpj)) {
+      const errorMessage = document.getElementById('register-cpf-cnpj-error');
+      if (errorMessage) {
+        errorMessage.textContent = 'Informe um CPF ou CNPJ válido.';
+        errorMessage.classList.remove('hidden');
+      }
+      window.showToast('Informe um CPF ou CNPJ válido.', 'error', true);
+      return;
+    }
+    document.getElementById('register-cpf-cnpj-error')?.classList.add('hidden');
     if (password !== confirmation) {
       window.showToast('As senhas não coincidem.', 'error', true);
       return;
     }
+    if (db.getUsers().some(user => String(user.email || '').toLowerCase() === email)) {
+      window.showToast('Já existe uma conta cadastrada com este e-mail.', 'error', true);
+      return;
+    }
+
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (submitButton) submitButton.disabled = true;
     try {
-      const salt = Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
+      const salt = gerarSaltSenha();
       const passwordHash = await derivePasswordHash(password, salt);
-      db.registerUser({ name, email, passwordSalt: salt, passwordHash, role: 'cliente' });
+      db.registerUser({
+        name,
+        email,
+        cpfCnpj,
+        telefone: phone,
+        endereco: address,
+        passwordSalt: salt,
+        passwordHash,
+        role: 'cliente'
+      });
       document.getElementById('login-email').value = email;
       document.getElementById('login-senha').value = '';
-      document.getElementById('form-register').reset();
+      form.reset();
       window.mostrarLogin();
-      window.showToast('Conta criada. Entre com seu e-mail e senha.');
+      window.showToast('Conta criada. O e-mail informado não foi verificado; use o endereço correto para conseguir entrar.');
     } catch (error) {
       window.showToast(error.message || 'Não foi possível criar a conta.', 'error', true);
+    } finally {
+      if (submitButton) submitButton.disabled = false;
     }
   });
 
@@ -1349,15 +1672,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  document.getElementById('lawai-input-msg')?.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') window.enviarMensagemLawAI();
-  });
   // Quando o Supabase envia dados atualizados, re-renderiza a tela atual
   document.addEventListener('db:synced', () => {
     const visible = document.querySelector('.spa-view:not(.hidden)');
     if (visible && typeof window.renderView === 'function') {
       window.renderView(visible.id.replace('view-', ''));
     }
+  });
+
+  const atualizarConsultasVencidas = () => {
+    if (!db.atualizarConsultasVencidas()) return;
+    const visible = document.querySelector('.spa-view:not(.hidden)');
+    if (visible && typeof window.renderView === 'function') {
+      window.renderView(visible.id.replace('view-', ''));
+    }
+  };
+  atualizarConsultasVencidas();
+  window.setInterval(atualizarConsultasVencidas, 60 * 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') atualizarConsultasVencidas();
   });
 
 });

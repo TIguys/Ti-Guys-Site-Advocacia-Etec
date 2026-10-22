@@ -101,18 +101,127 @@ html, body {
   padding: 1.25rem 1rem !important;
 }
 
-#main-header > div:first-child {
+#main-header .app-header-inner {
   height: auto;
   min-height: 4.5rem;
   padding: .65rem 1rem;
   gap: .75rem;
 }
 
-#main-header > div:first-child > div:first-child { gap: .55rem; }
-#main-header > div:first-child > div:first-child > div:last-child span:first-child { font-size: 1rem; }
-#main-header > div:first-child > div:last-child { gap: .5rem; }
-#staff-navigation-mobile { justify-content: flex-start; gap: .4rem; }
-#staff-navigation-mobile button { flex: 0 0 auto; padding: .55rem .7rem; }
+#main-header .header-brand { gap: .55rem; }
+#main-header .header-brand > div:last-child span:first-child { font-size: 1rem; }
+#main-header .header-utilities { gap: .5rem; }
+#btn-open-navigation { flex: 0 0 auto; }
+
+#staff-navigation-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+
+#navigation-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: rgba(15, 23, 42, .52);
+  cursor: default;
+}
+
+#navigation-panel {
+  position: relative;
+  z-index: 1;
+  width: min(20rem, calc(100vw - 2.5rem));
+  height: 100%;
+  padding: 1.25rem 1rem;
+  overflow-y: auto;
+  background: #fff;
+  border-right: 1px solid #e7e5e4;
+  box-shadow: 12px 0 36px rgba(15, 23, 42, .18);
+  animation: navigation-panel-enter .18s ease-out;
+}
+
+.dark #navigation-panel {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.navigation-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .25rem .25rem 1.25rem;
+  margin-bottom: .75rem;
+  border-bottom: 1px solid #e7e5e4;
+}
+
+.dark .navigation-panel-header { border-color: #334155; }
+
+.navigation-close-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 0;
+  border-radius: .5rem;
+  color: #57534e;
+  background: transparent;
+  cursor: pointer;
+}
+
+.navigation-close-button:hover { background: #f5f5f4; }
+.dark .navigation-close-button { color: #cbd5e1; }
+.dark .navigation-close-button:hover { background: #334155; }
+
+#staff-navigation {
+  display: grid;
+  gap: .35rem;
+}
+
+.sidebar-nav-link {
+  display: flex;
+  align-items: center;
+  gap: .85rem;
+  width: 100%;
+  min-height: 2.9rem;
+  padding: .65rem .8rem;
+  border: 0;
+  border-radius: .55rem;
+  color: #57534e;
+  background: transparent;
+  text-align: left;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: .875rem;
+  cursor: pointer;
+  transition: color .15s ease, background-color .15s ease;
+}
+
+.sidebar-nav-link:hover {
+  color: #3D0B12;
+  background: #faf4f5;
+}
+
+.sidebar-nav-link.active {
+  color: #3D0B12;
+  background: #faf4f5;
+  font-weight: 700;
+}
+
+.sidebar-nav-link .material-symbols-outlined { font-size: 1.25rem; }
+.sidebar-nav-link > .fa-solid { display: inline-block; width: 1.25rem; flex: 0 0 1.25rem; text-align: center; font-size: 1.05rem; }
+.dark .sidebar-nav-link { color: #cbd5e1; }
+.dark .sidebar-nav-link:hover,
+.dark .sidebar-nav-link.active { color: #CFAC4C; background: #334155; }
+
+body.navigation-open { overflow: hidden; }
+
+@keyframes navigation-panel-enter {
+  from { transform: translateX(-1rem); opacity: .7; }
+  to { transform: translateX(0); opacity: 1; }
+}
 
 #view-login, #view-register {
   padding: 1rem !important;
@@ -141,8 +250,6 @@ html, body {
 #view-relatorios .overflow-x-auto table { min-width: 640px; }
 #view-consultas > div:first-child, #view-dashboard > div:first-child { align-items: stretch; }
 #view-dashboard > div:first-child .flex.items-center { flex-wrap: wrap; }
-#view-lawai > div:last-child { height: min(70dvh, 36rem); padding: 1rem; }
-#lawai-chat-box { min-height: 16rem; }
 #toast-notificacao { left: 1rem; right: 1rem; bottom: 1rem; max-width: calc(100vw - 2rem); }
 footer > div { padding-left: 1rem !important; padding-right: 1rem !important; }
 
@@ -161,15 +268,14 @@ button { touch-action: manipulation; }
 }
 
 @media (min-width: 768px) {
-  #main-header > div:first-child {
+  #main-header .app-header-inner {
     height: 5rem;
     padding-left: 1.5rem;
     padding-right: 1.5rem;
+    justify-content: flex-start;
   }
-  #main-header nav { display: flex; }
-  #staff-navigation-mobile { justify-content: space-around; }
+  #main-header .header-brand { margin-right: auto; }
   #view-login, #view-register { align-items: center; }
-  #view-lawai > div:last-child { height: 520px; padding: 1.5rem; }
   button, select, input, textarea { font-size: inherit; }
 }
 

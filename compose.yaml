@@ -1,70 +1,12 @@
 services:
-  ollama:
-    image: ollama/ollama:latest
-    restart: unless-stopped
-    volumes:
-      - ollama_models:/root/.ollama
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 30s
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-
-  model-init:
-    image: ollama/ollama:latest
-    restart: "no"
-    depends_on:
-      ollama:
-        condition: service_healthy
-    environment:
-      OLLAMA_HOST: http://ollama:11434
-      AI_MODEL: ${AI_MODEL:-qwen2.5:7b}
-    entrypoint: ["/bin/sh", "-c"]
-    command: ["ollama pull \"$${AI_MODEL}\""]
-    volumes:
-      - ollama_models:/root/.ollama
-
-  lawai:
+  web:
     build: .
     restart: unless-stopped
-    depends_on:
-      model-init:
-        condition: service_completed_successfully
+    env_file:
+      - .env
     environment:
-      AI_PROVIDER: ollama
-      AI_MODEL: ${AI_MODEL:-qwen2.5:7b}
-      OLLAMA_BASE_URL: http://ollama:11434
-      AI_KNOWLEDGE_DB: /app/data/legal_knowledge.sqlite3
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://tiguys.github.io}
-      AI_RATE_LIMIT: ${AI_RATE_LIMIT:-10}
-      AI_RATE_WINDOW_SECONDS: ${AI_RATE_WINDOW_SECONDS:-60}
-      AI_MAX_CONCURRENT_REQUESTS: ${AI_MAX_CONCURRENT_REQUESTS:-2}
+      HOST: 0.0.0.0
       PORT: 8080
     ports:
-      - "8080:8080"
-    volumes:
-      - legal_knowledge:/app/data
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "from urllib.request import urlopen; urlopen('http://127.0.0.1:8080/api/health', timeout=3)",
-        ]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 90s
+      - "127.0.0.1:8080:8080"
 
-volumes:
-  ollama_models:
-  legal_knowledge:

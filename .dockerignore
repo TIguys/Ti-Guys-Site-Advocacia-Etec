@@ -2,9 +2,8 @@
 node_modules/
 __pycache__/
 *.py[cod]
-data/
-Ai_tcc.env
 .env
 .env.*
+*.env
 !.env.example
 .git/

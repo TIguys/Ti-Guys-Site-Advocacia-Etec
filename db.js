@@ -265,7 +265,7 @@ class Database {
     this._pushTimers = {};
     this.initStorage();
     // Inicializa a sincronização em segundo plano sem travar a interface.
-    this.initSupabase();
+    this.supabaseInitPromise = this.initSupabase();
   }
 
   // === CONFIGURAÇÃO DO SUPABASE ===
@@ -473,7 +473,22 @@ class Database {
     };
     if (savedUser.role === 'cliente') {
       let cliente = this.getClientes().find(item => String(item.email || '').toLowerCase() === email);
-      if (!cliente) cliente = this.salvarCliente({ nomeCompleto: savedUser.name, email, cpfCnpj: '', telefone: '', endereco: '' });
+      if (!cliente) {
+        cliente = this.salvarCliente({
+          nomeCompleto: savedUser.name,
+          email,
+          cpfCnpj: user.cpfCnpj || '',
+          telefone: user.telefone || '',
+          endereco: user.endereco || ''
+        });
+      } else if (user.cpfCnpj !== undefined || user.telefone !== undefined || user.endereco !== undefined) {
+        cliente = this.salvarCliente({
+          ...cliente,
+          ...(user.cpfCnpj !== undefined ? { cpfCnpj: user.cpfCnpj } : {}),
+          ...(user.telefone !== undefined ? { telefone: user.telefone } : {}),
+          ...(user.endereco !== undefined ? { endereco: user.endereco } : {})
+        });
+      }
       savedUser.clienteId = cliente.id;
     } else if (savedUser.role === 'advogado') {
       const advogado = this.getAdvogados().find(item => item.id === user.advogadoId);
@@ -645,7 +660,26 @@ class Database {
 
   // === CONSULTAS CRUD (F3 + F4) ===
   getConsultas() {
+    this.atualizarConsultasVencidas();
     return this.getItem(STORAGE_KEYS.CONSULTAS) || [];
+  }
+
+  atualizarConsultasVencidas() {
+    const consultas = this.getItem(STORAGE_KEYS.CONSULTAS) || [];
+    const agora = Date.now();
+    let atualizou = false;
+
+    consultas.forEach(consulta => {
+      if (consulta.status !== 'agendada') return;
+      const fimConsulta = Date.parse(consulta.fim || consulta.inicio || '');
+      if (!Number.isNaN(fimConsulta) && fimConsulta <= agora) {
+        consulta.status = 'realizada';
+        atualizou = true;
+      }
+    });
+
+    if (atualizou) this.setItem(STORAGE_KEYS.CONSULTAS, consultas);
+    return atualizou;
   }
 
   agendarConsulta(consulta) {
